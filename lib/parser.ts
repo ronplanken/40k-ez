@@ -351,20 +351,24 @@ interface UnitGroup {
   enhancement?: string; // Enhancement name if any
 }
 
-function groupUnits(units: Unit[]): UnitGroup[] {
+function groupUnits(units: Unit[], options: DisplayOptions): UnitGroup[] {
   const grouped = new Map<string, UnitGroup>();
 
   for (const unit of units) {
     const cleanName = cleanUnitName(unit.name);
-    // Create a unique key that includes enhancement to keep units with different enhancements separate
-    const groupKey = unit.enhancement ? `${cleanName}|${unit.enhancement}` : cleanName;
+    // Create a unique key:
+    // - If showEnhancements is ON: include enhancement in key to keep units with different enhancements separate
+    // - If showEnhancements is OFF: use only the name to group all instances together
+    const groupKey = (options.showEnhancements && unit.enhancement)
+      ? `${cleanName}|${unit.enhancement}`
+      : cleanName;
 
     if (!grouped.has(groupKey)) {
       grouped.set(groupKey, {
         name: cleanName,
         instances: [],
         isCharacter: unit.isCharacter, // Preserve isCharacter flag
-        enhancement: unit.enhancement, // Preserve enhancement
+        enhancement: unit.enhancement, // Preserve enhancement (only used if showEnhancements is ON)
       });
     }
 
@@ -385,7 +389,7 @@ function formatCondensed(armyList: ArmyList, options: DisplayOptions): string {
     return "";
   }
 
-  const grouped = groupUnits(armyList.units);
+  const grouped = groupUnits(armyList.units, options);
   const parts: string[] = [];
 
   for (const group of grouped) {
