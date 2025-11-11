@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import CloudflareWebAnalyticsProvider from 'next-cloudflare-web-analytics';
 
 export const metadata: Metadata = {
   title: "EZLIST - Army List Formatter",
@@ -15,7 +15,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <CloudflareWebAnalyticsProvider token={'789ed2a4341d4c3086fade4820a5eff2'} />
       <body className="antialiased">
         <ThemeProvider
           attribute="class"
@@ -25,6 +24,12 @@ export default function RootLayout({
         >
           {children}
         </ThemeProvider>
+        <Script
+          defer
+          src="https://static.cloudflareinsights.com/beacon.min.js"
+          data-cf-beacon='{"token": "789ed2a4341d4c3086fade4820a5eff2"}'
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
