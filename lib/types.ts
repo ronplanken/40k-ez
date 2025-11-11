@@ -27,6 +27,7 @@ export interface DisplayOptions {
   showDetachment: boolean;
   showEnhancements: boolean; // Show enhancements in non-condensed format
   condensedFormat: boolean; // New option for single-line condensed output
+  forceSingleUnitPrefix: boolean; // Force "1x" prefix for single non-character units in condensed format
 }
 
 export const defaultDisplayOptions: DisplayOptions = {
@@ -36,4 +37,5 @@ export const defaultDisplayOptions: DisplayOptions = {
   showDetachment: true,
   showEnhancements: true,
   condensedFormat: true,
+  forceSingleUnitPrefix: false,
 };

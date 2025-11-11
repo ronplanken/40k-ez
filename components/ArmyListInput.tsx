@@ -96,7 +96,7 @@ export function ArmyListInput({ value, onChange, onSettingsClick }: ArmyListInpu
           id="army-list-input"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Paste your army list here..."
+          placeholder="Paste your 40k app army list here..."
           className={cn(
             "w-full h-64 px-4 py-3 rounded-lg",
             "bg-white dark:bg-gray-800",

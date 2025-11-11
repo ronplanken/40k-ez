@@ -8,6 +8,34 @@ function isStructuredFormat(text: string): boolean {
 }
 
 /**
+ * Analyzes bullet indentation structure to determine model count
+ * Returns the model count based on smart indentation analysis:
+ * - If bullets have nested structure (multiple indent levels): count first-level bullets only
+ * - If bullets are all at same level (flat structure): it's a single-model unit, return 1
+ */
+function analyzeModelCount(bulletLines: Array<{ indent: number; quantity: number }>): number {
+  if (bulletLines.length === 0) {
+    return 1; // No bullets = single model
+  }
+
+  // Get all unique indentation levels
+  const indentLevels = [...new Set(bulletLines.map(b => b.indent))].sort((a, b) => a - b);
+
+  if (indentLevels.length === 1) {
+    // All bullets at same indentation level = single-model unit with weapon list
+    return 1;
+  }
+
+  // Multiple indentation levels = first level is models, deeper levels are weapons
+  const firstIndentLevel = indentLevels[0];
+  const modelCount = bulletLines
+    .filter(b => b.indent === firstIndentLevel)
+    .reduce((sum, b) => sum + b.quantity, 0);
+
+  return modelCount > 0 ? modelCount : 1;
+}
+
+/**
  * Parses structured army list format (Battlescribe-style)
  */
 function parseStructuredList(text: string): ArmyList {
@@ -20,8 +48,7 @@ function parseStructuredList(text: string): ArmyList {
   let totalPoints: number | undefined;
 
   let currentUnit: Partial<Unit> | null = null;
-  let currentModelCount = 0;
-  let firstBulletIndent: number | null = null; // Track the indentation of first bullet under a unit
+  let bulletLines: Array<{ indent: number; quantity: number }> = []; // Collect bullets with indentation
   let currentSection: string | null = null; // Track which section we're parsing (CHARACTERS, BATTLELINE, etc.)
 
   for (let i = 0; i < lines.length; i++) {
@@ -55,8 +82,13 @@ function parseStructuredList(text: string): ArmyList {
         // Line 4 for Space Marines: Subfaction
         faction = `Space Marines - ${trimmed}`;
       } else {
-        // Line 4 for non-Space Marines: Battle size
-        battleSize = trimmed;
+        // Line 4 for non-Space Marines: Could be Battle size or Detachment
+        // Check if it looks like a battle size
+        if (/^(Strike Force|Incursion|Onslaught)/i.test(trimmed)) {
+          battleSize = trimmed;
+        } else {
+          detachment = trimmed;
+        }
       }
       continue;
     }
@@ -66,8 +98,13 @@ function parseStructuredList(text: string): ArmyList {
         // Line 5 for Space Marines: Battle size
         battleSize = trimmed;
       } else {
-        // Line 5 for non-Space Marines: Detachment
-        detachment = trimmed;
+        // Line 5 for non-Space Marines: Could be Detachment or Battle size (if swapped)
+        // Check if we already have a battle size or detachment from line 4
+        if (!battleSize && /^(Strike Force|Incursion|Onslaught)/i.test(trimmed)) {
+          battleSize = trimmed;
+        } else if (!detachment) {
+          detachment = trimmed;
+        }
       }
       continue;
     }
@@ -103,8 +140,8 @@ function parseStructuredList(text: string): ArmyList {
       continue;
     }
 
-    // Parse enhancement lines
-    const enhancementMatch = trimmed.match(/^[•\-\*]?\s*Enhancement:\s*(.+)$/i);
+    // Parse enhancement lines (accepts both "Enhancement:" and "Enhancements:")
+    const enhancementMatch = trimmed.match(/^[•\-\*]?\s*Enhancements?:\s*(.+)$/i);
     if (enhancementMatch && currentUnit) {
       currentUnit.enhancement = enhancementMatch[1].trim();
       continue;
@@ -120,10 +157,13 @@ function parseStructuredList(text: string): ArmyList {
     if (unitHeaderMatch) {
       // Save previous unit if exists
       if (currentUnit && currentUnit.name) {
+        // Analyze collected bullets to determine model count
+        const modelCount = analyzeModelCount(bulletLines);
+
         units.push({
           name: currentUnit.name,
           points: currentUnit.points,
-          modelCount: currentModelCount > 0 ? currentModelCount : 1,
+          modelCount: modelCount,
           weapons: currentUnit.weapons,
           wargear: currentUnit.wargear,
           isCharacter: currentUnit.isCharacter,
@@ -142,34 +182,28 @@ function parseStructuredList(text: string): ArmyList {
         sectionType: currentSection || undefined, // Store the section type
         enhancement: undefined, // Will be set if enhancement line is found
       };
-      currentModelCount = 0;
-      firstBulletIndent = null; // Reset bullet indent tracking for new unit
+      bulletLines = []; // Reset bullet collection for new unit
       continue;
     }
 
     // Parse model composition lines (bullet points with quantities)
-    const modelMatch = trimmed.match(/^[•\-\*]\s*(\d+)x\s+(.+)/);
+    const modelMatch = trimmed.match(/^[•\-\*◦]\s*(\d+)x\s+(.+)/);
     if (modelMatch && currentUnit) {
-      // Set the first bullet indentation level if not set
-      if (firstBulletIndent === null) {
-        firstBulletIndent = indentation;
-      }
-
-      // Only count models at the FIRST indentation level (not weapons which are indented deeper)
-      if (indentation === firstBulletIndent) {
-        const quantity = parseInt(modelMatch[1], 10);
-        currentModelCount += quantity;
-      }
-      // Weapon lines (deeper indentation) are ignored for model counting
+      // Collect bullet with its indentation and quantity
+      const quantity = parseInt(modelMatch[1], 10);
+      bulletLines.push({ indent: indentation, quantity: quantity });
     }
   }
 
   // Save last unit
   if (currentUnit && currentUnit.name) {
+    // Analyze collected bullets to determine model count
+    const modelCount = analyzeModelCount(bulletLines);
+
     units.push({
       name: currentUnit.name,
       points: currentUnit.points,
-      modelCount: currentModelCount > 0 ? currentModelCount : 1,
+      modelCount: modelCount,
       weapons: currentUnit.weapons,
       wargear: currentUnit.wargear,
       isCharacter: currentUnit.isCharacter,
@@ -314,6 +348,7 @@ interface UnitGroup {
   name: string;
   instances: Array<{ modelCount: number; points?: number }>;
   isCharacter?: boolean;
+  enhancement?: string; // Enhancement name if any
 }
 
 function groupUnits(units: Unit[]): UnitGroup[] {
@@ -321,16 +356,19 @@ function groupUnits(units: Unit[]): UnitGroup[] {
 
   for (const unit of units) {
     const cleanName = cleanUnitName(unit.name);
+    // Create a unique key that includes enhancement to keep units with different enhancements separate
+    const groupKey = unit.enhancement ? `${cleanName}|${unit.enhancement}` : cleanName;
 
-    if (!grouped.has(cleanName)) {
-      grouped.set(cleanName, {
+    if (!grouped.has(groupKey)) {
+      grouped.set(groupKey, {
         name: cleanName,
         instances: [],
         isCharacter: unit.isCharacter, // Preserve isCharacter flag
+        enhancement: unit.enhancement, // Preserve enhancement
       });
     }
 
-    grouped.get(cleanName)!.instances.push({
+    grouped.get(groupKey)!.instances.push({
       modelCount: unit.modelCount || 1,
       points: unit.points,
     });
@@ -342,7 +380,7 @@ function groupUnits(units: Unit[]): UnitGroup[] {
 /**
  * Formats units in condensed single-line format
  */
-function formatCondensed(armyList: ArmyList): string {
+function formatCondensed(armyList: ArmyList, options: DisplayOptions): string {
   if (armyList.units.length === 0) {
     return "";
   }
@@ -353,13 +391,21 @@ function formatCondensed(armyList: ArmyList): string {
   for (const group of grouped) {
     // Check if this is a character (show unit count only, not model count)
     if (group.isCharacter) {
+      let unitText = '';
       if (group.instances.length > 1) {
         // Multiple character units: "2x Slaughterbound"
-        parts.push(`${group.instances.length}x ${group.name}`);
+        unitText = `${group.instances.length}x ${group.name}`;
       } else {
         // Single character unit: just the name
-        parts.push(group.name);
+        unitText = group.name;
       }
+
+      // Add enhancement if present and enabled
+      if (group.enhancement && options.showEnhancements) {
+        unitText += ` (${group.enhancement})`;
+      }
+
+      parts.push(unitText);
       continue;
     }
 
@@ -370,8 +416,14 @@ function formatCondensed(armyList: ArmyList): string {
         // Multiple models in single unit: "1x6 Aggressor Squad"
         parts.push(`1x${instance.modelCount} ${group.name}`);
       } else {
-        // Single model in single unit: just the name
-        parts.push(group.name);
+        // Single model in single unit
+        if (options.forceSingleUnitPrefix) {
+          // Force "1x" prefix: "1x Raider"
+          parts.push(`1x ${group.name}`);
+        } else {
+          // Just the name: "Raider"
+          parts.push(group.name);
+        }
       }
     } else {
       // Multiple instances - group by model count
@@ -431,7 +483,7 @@ export function formatArmyList(
 
   // Use condensed format if requested
   if (options.condensedFormat) {
-    return formatCondensed(armyList);
+    return formatCondensed(armyList, options);
   }
 
   const lines: string[] = [];

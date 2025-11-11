@@ -62,6 +62,26 @@ export function OptionsPanel({ options, onChange }: OptionsPanelProps) {
             onChange({ ...options, condensedFormat: checked })
           }
         />
+        {options.condensedFormat && (
+          <>
+            <Toggle
+              label="Show Enhancements"
+              description="Display character enhancements (e.g., Succubus (Chronoshard))"
+              checked={options.showEnhancements}
+              onChange={(checked) =>
+                onChange({ ...options, showEnhancements: checked })
+              }
+            />
+            <Toggle
+              label="Force 1x Prefix"
+              description="Show '1x' for single non-character units (e.g., 1x Raider)"
+              checked={options.forceSingleUnitPrefix}
+              onChange={(checked) =>
+                onChange({ ...options, forceSingleUnitPrefix: checked })
+              }
+            />
+          </>
+        )}
         {!options.condensedFormat && (
           <>
             <Toggle
