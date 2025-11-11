@@ -96,6 +96,14 @@ export function OptionsPanel({ options, onChange }: OptionsPanelProps) {
                 onChange({ ...options, showDetachment: checked })
               }
             />
+            <Toggle
+              label="Show Enhancements"
+              description="Display character enhancements"
+              checked={options.showEnhancements}
+              onChange={(checked) =>
+                onChange({ ...options, showEnhancements: checked })
+              }
+            />
           </>
         )}
       </div>

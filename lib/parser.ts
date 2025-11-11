@@ -485,8 +485,8 @@ export function formatArmyList(
       }
     }
 
-    // Add enhancement (always shown in regular format)
-    if (unit.enhancement) {
+    // Add enhancement (only shown when showEnhancements is enabled)
+    if (unit.enhancement && options.showEnhancements) {
       unitLine += ` - Enhancement: ${unit.enhancement}`;
     }
 

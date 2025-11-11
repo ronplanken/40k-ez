@@ -25,6 +25,7 @@ export interface DisplayOptions {
   showPoints: boolean;
   showWeapons: boolean;
   showDetachment: boolean;
+  showEnhancements: boolean; // Show enhancements in non-condensed format
   condensedFormat: boolean; // New option for single-line condensed output
 }
 
@@ -32,6 +33,7 @@ export const defaultDisplayOptions: DisplayOptions = {
   showUnitsAndNames: true,
   showPoints: false,
   showWeapons: false,
-  showDetachment: false,
-  condensedFormat: false,
+  showDetachment: true,
+  showEnhancements: true,
+  condensedFormat: true,
 };
