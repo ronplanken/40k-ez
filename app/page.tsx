@@ -36,7 +36,7 @@ export default function Home() {
               EZLIST
             </h1>
             <p className="text-sm md:text-base text-gray-600 dark:text-gray-400">
-              Convert your Warhammer 40K army lists to easily readable format
+              Convert your Warhammer 40K app army lists to easily readable format
             </p>
           </div>
           <ThemeToggle />
@@ -58,16 +58,6 @@ export default function Home() {
           <div className="hidden lg:block lg:col-span-1">
             <div className="sticky top-8">
               <OptionsPanel options={options} onChange={setOptions} />
-
-              {/* Future Supabase Integration Section */}
-              <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
-                  Coming Soon
-                </h4>
-                <p className="text-xs text-blue-700 dark:text-blue-300">
-                  Save and share your army lists with Supabase integration
-                </p>
-              </div>
             </div>
           </div>
         </div>
