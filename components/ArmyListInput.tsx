@@ -1,14 +1,15 @@
 "use client";
 
-import { Clipboard } from "lucide-react";
+import { Clipboard, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ArmyListInputProps {
   value: string;
   onChange: (value: string) => void;
+  onSettingsClick?: () => void;
 }
 
-export function ArmyListInput({ value, onChange }: ArmyListInputProps) {
+export function ArmyListInput({ value, onChange, onSettingsClick }: ArmyListInputProps) {
   const handlePaste = async () => {
     try {
       const text = await navigator.clipboard.readText();
@@ -28,18 +29,36 @@ export function ArmyListInput({ value, onChange }: ArmyListInputProps) {
         >
           Army List Input
         </label>
-        <button
-          onClick={handlePaste}
-          className={cn(
-            "flex items-center gap-2 px-3 py-1.5 text-sm rounded-md",
-            "bg-blue-600 text-white hover:bg-blue-700",
-            "transition-colors duration-200",
-            "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+        <div className="flex items-center gap-2">
+          {/* Settings button - only visible on mobile/tablet */}
+          {onSettingsClick && (
+            <button
+              onClick={onSettingsClick}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 text-sm rounded-md lg:hidden",
+                "bg-gray-600 text-white hover:bg-gray-700",
+                "transition-colors duration-200",
+                "focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+              )}
+            >
+              <Settings className="h-4 w-4" />
+              Settings
+            </button>
           )}
-        >
-          <Clipboard className="h-4 w-4" />
-          Paste
-        </button>
+          {/* Paste button */}
+          <button
+            onClick={handlePaste}
+            className={cn(
+              "flex items-center gap-2 px-3 py-1.5 text-sm rounded-md",
+              "bg-blue-600 text-white hover:bg-blue-700",
+              "transition-colors duration-200",
+              "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+            )}
+          >
+            <Clipboard className="h-4 w-4" />
+            Paste
+          </button>
+        </div>
       </div>
       <textarea
         id="army-list-input"

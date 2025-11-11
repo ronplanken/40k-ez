@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { ArmyListInput } from "@/components/ArmyListInput";
 import { ArmyListOutput } from "@/components/ArmyListOutput";
 import { OptionsPanel } from "@/components/OptionsPanel";
+import { SettingsModal } from "@/components/SettingsModal";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { parseArmyList, formatArmyList } from "@/lib/parser";
 import { defaultDisplayOptions, type DisplayOptions } from "@/lib/types";
@@ -12,6 +13,7 @@ export default function Home() {
   const [inputText, setInputText] = useState("");
   const [outputText, setOutputText] = useState("");
   const [options, setOptions] = useState<DisplayOptions>(defaultDisplayOptions);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   useEffect(() => {
     if (!inputText.trim()) {
@@ -42,14 +44,18 @@ export default function Home() {
 
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column: Input and Options */}
+          {/* Left Column: Input and Output */}
           <div className="lg:col-span-2 flex flex-col gap-6">
-            <ArmyListInput value={inputText} onChange={setInputText} />
+            <ArmyListInput
+              value={inputText}
+              onChange={setInputText}
+              onSettingsClick={() => setIsSettingsOpen(true)}
+            />
             <ArmyListOutput value={outputText} />
           </div>
 
-          {/* Right Column: Options Panel */}
-          <div className="lg:col-span-1">
+          {/* Right Column: Options Panel (Desktop only) */}
+          <div className="hidden lg:block lg:col-span-1">
             <div className="sticky top-8">
               <OptionsPanel options={options} onChange={setOptions} />
 
@@ -65,6 +71,14 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        {/* Settings Modal (Mobile/Tablet only) */}
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          options={options}
+          onChange={setOptions}
+        />
 
         {/* Footer */}
         <div className="mt-12 pt-6 border-t border-gray-200 dark:border-gray-700">
