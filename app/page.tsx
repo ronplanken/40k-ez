@@ -33,7 +33,7 @@ export default function Home() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2">
-              40K EZ
+              EZLIST
             </h1>
             <p className="text-sm md:text-base text-gray-600 dark:text-gray-400">
               Convert your Warhammer 40K army lists to easily readable format
@@ -82,9 +82,39 @@ export default function Home() {
 
         {/* Footer */}
         <div className="mt-12 pt-6 border-t border-gray-200 dark:border-gray-700">
-          <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-            Built for the Emperor. Made with Next.js.
-          </p>
+          <div className="flex flex-col items-center gap-4">
+            <div className="flex flex-wrap justify-center gap-4 text-sm">
+              <a
+                href="https://game-datacards.eu"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              >
+                game-datacards.eu
+              </a>
+              <span className="text-gray-300 dark:text-gray-600">•</span>
+              <a
+                href="https://gdmissions.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              >
+                gdmissions.app
+              </a>
+              <span className="text-gray-300 dark:text-gray-600">•</span>
+              <a
+                href="https://aosmissions.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              >
+                aosmissions.app
+              </a>
+            </div>
+            <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+              Built for the Emperor. Made by Shinobau
+            </p>
+          </div>
         </div>
       </div>
     </div>
