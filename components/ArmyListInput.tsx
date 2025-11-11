@@ -96,7 +96,7 @@ export function ArmyListInput({ value, onChange, onSettingsClick }: ArmyListInpu
           id="army-list-input"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Paste your army list here...&#10;&#10;Example:&#10;Space Marines - Gladius Strike Force&#10;3x Intercessor Squad - 100pts&#10;Captain [Power Sword, Storm Shield] - 80pts&#10;Dreadnought [Assault Cannon] - 150pts&#10;Total: 330pts"
+          placeholder="Paste your army list here..."
           className={cn(
             "w-full h-64 px-4 py-3 rounded-lg",
             "bg-white dark:bg-gray-800",
