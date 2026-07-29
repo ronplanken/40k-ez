@@ -7,33 +7,32 @@ import { cn } from "@/lib/utils";
 
 export function ThemeToggle() {
   const [mounted, setMounted] = useState(false);
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   if (!mounted) {
-    return (
-      <div className="h-10 w-10 rounded-lg bg-gray-200 dark:bg-gray-800 animate-pulse" />
-    );
+    return <div className="h-8 w-8 rounded-sm border border-line bg-bg-elevated" />;
   }
 
   return (
     <button
-      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
       className={cn(
-        "flex items-center justify-center h-10 w-10 rounded-lg",
-        "bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700",
-        "transition-colors duration-200",
-        "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+        "flex h-8 w-8 items-center justify-center rounded-sm",
+        "border border-line bg-bg-elevated text-text-muted",
+        "transition-colors duration-fast ease-out hover:bg-soft hover:text-text-primary",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        "focus-visible:ring-offset-2 focus-visible:ring-offset-bg-app"
       )}
       aria-label="Toggle theme"
     >
-      {theme === "dark" ? (
-        <Sun className="h-5 w-5 text-yellow-500" />
+      {resolvedTheme === "dark" ? (
+        <Sun className="h-4 w-4" />
       ) : (
-        <Moon className="h-5 w-5 text-gray-700" />
+        <Moon className="h-4 w-4" />
       )}
     </button>
   );

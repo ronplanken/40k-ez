@@ -1,132 +1,112 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import type { DisplayOptions } from "@/lib/types";
+import { BlockHeader, CARD, OptionRow, ToggleSwitch } from "./ui/panel";
 
 interface OptionsPanelProps {
   options: DisplayOptions;
   onChange: (options: DisplayOptions) => void;
+  /** The modal supplies its own header, so the card chrome is dropped there. */
+  bare?: boolean;
 }
 
-interface ToggleProps {
-  label: string;
-  description: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}
+export function OptionsPanel({ options, onChange, bare }: OptionsPanelProps) {
+  const toggle = (key: keyof DisplayOptions) => () =>
+    onChange({ ...options, [key]: !options[key] });
 
-function Toggle({ label, description, checked, onChange }: ToggleProps) {
-  return (
-    <div className="flex items-center justify-between py-3 border-b border-gray-200 dark:border-gray-700 last:border-0">
-      <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-          {label}
-        </span>
-        <span className="text-xs text-gray-500 dark:text-gray-400">
-          {description}
-        </span>
-      </div>
-      <button
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={cn(
-          "relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200",
-          "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900",
-          checked ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-600"
-        )}
+  const rows = (
+    <div className="divide-y divide-line">
+      <OptionRow
+        title="Condensed Format"
+        description="Single-line output, e.g. 3x5 Intercessors"
       >
-        <span
-          className={cn(
-            "inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200",
-            checked ? "translate-x-6" : "translate-x-1"
-          )}
+        <ToggleSwitch
+          on={options.condensedFormat}
+          onToggle={toggle("condensedFormat")}
+          ariaLabel="Condensed format"
         />
-      </button>
+      </OptionRow>
+
+      {options.condensedFormat ? (
+        <OptionRow
+          title="Force 1x Prefix"
+          description="Show 1x for single non-character units, e.g. 1x Raider"
+        >
+          <ToggleSwitch
+            on={options.forceSingleUnitPrefix}
+            onToggle={toggle("forceSingleUnitPrefix")}
+            ariaLabel="Force 1x prefix"
+          />
+        </OptionRow>
+      ) : (
+        <>
+          <OptionRow title="Units and Names" description="Show unit names">
+            <ToggleSwitch
+              on={options.showUnitsAndNames}
+              onToggle={toggle("showUnitsAndNames")}
+              ariaLabel="Units and names"
+            />
+          </OptionRow>
+          <OptionRow title="Points Values" description="Show point costs">
+            <ToggleSwitch
+              on={options.showPoints}
+              onToggle={toggle("showPoints")}
+              ariaLabel="Points values"
+            />
+          </OptionRow>
+          <OptionRow
+            title="Weapons and Wargear"
+            description="Show equipment and loadouts"
+          >
+            <ToggleSwitch
+              on={options.showWeapons}
+              onToggle={toggle("showWeapons")}
+              ariaLabel="Weapons and wargear"
+            />
+          </OptionRow>
+          <OptionRow
+            title="Detachment and Faction"
+            description="Show army faction and detachment"
+          >
+            <ToggleSwitch
+              on={options.showDetachment}
+              onToggle={toggle("showDetachment")}
+              ariaLabel="Detachment and faction"
+            />
+          </OptionRow>
+        </>
+      )}
+
+      <OptionRow
+        title="Show Enhancements"
+        description="Display character enhancements, e.g. Succubus (Chronoshard)"
+      >
+        <ToggleSwitch
+          on={options.showEnhancements}
+          onToggle={toggle("showEnhancements")}
+          ariaLabel="Show enhancements"
+        />
+      </OptionRow>
+
+      <OptionRow
+        title="Attached Leaders"
+        description="Condensed: write the unit behind its character, e.g. Lord on Juggernaut + 1x6 Bloodcrushers. Expanded: name the character behind its unit."
+      >
+        <ToggleSwitch
+          on={options.showAttachedLeaders}
+          onToggle={toggle("showAttachedLeaders")}
+          ariaLabel="Attached leaders"
+        />
+      </OptionRow>
     </div>
   );
-}
 
-export function OptionsPanel({ options, onChange }: OptionsPanelProps) {
+  if (bare) return rows;
+
   return (
-    <div className="flex flex-col gap-2">
-      <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-        Display Options
-      </h3>
-      <div className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg px-4">
-        <Toggle
-          label="Condensed Format"
-          description="Single-line condensed output (e.g., 3x5 Intercessors)"
-          checked={options.condensedFormat}
-          onChange={(checked) =>
-            onChange({ ...options, condensedFormat: checked })
-          }
-        />
-        {options.condensedFormat && (
-          <>
-            <Toggle
-              label="Show Enhancements"
-              description="Display character enhancements (e.g., Succubus (Chronoshard))"
-              checked={options.showEnhancements}
-              onChange={(checked) =>
-                onChange({ ...options, showEnhancements: checked })
-              }
-            />
-            <Toggle
-              label="Force 1x Prefix"
-              description="Show '1x' for single non-character units (e.g., 1x Raider)"
-              checked={options.forceSingleUnitPrefix}
-              onChange={(checked) =>
-                onChange({ ...options, forceSingleUnitPrefix: checked })
-              }
-            />
-          </>
-        )}
-        {!options.condensedFormat && (
-          <>
-            <Toggle
-              label="Units & Names"
-              description="Show unit names and quantities"
-              checked={options.showUnitsAndNames}
-              onChange={(checked) =>
-                onChange({ ...options, showUnitsAndNames: checked })
-              }
-            />
-            <Toggle
-              label="Points Values"
-              description="Show point costs"
-              checked={options.showPoints}
-              onChange={(checked) =>
-                onChange({ ...options, showPoints: checked })
-              }
-            />
-            <Toggle
-              label="Weapons & Wargear"
-              description="Show equipment and loadouts"
-              checked={options.showWeapons}
-              onChange={(checked) =>
-                onChange({ ...options, showWeapons: checked })
-              }
-            />
-            <Toggle
-              label="Detachment & Faction"
-              description="Show army faction and detachment"
-              checked={options.showDetachment}
-              onChange={(checked) =>
-                onChange({ ...options, showDetachment: checked })
-              }
-            />
-            <Toggle
-              label="Show Enhancements"
-              description="Display character enhancements"
-              checked={options.showEnhancements}
-              onChange={(checked) =>
-                onChange({ ...options, showEnhancements: checked })
-              }
-            />
-          </>
-        )}
-      </div>
+    <div className={CARD}>
+      <BlockHeader label="Display Options" />
+      {rows}
     </div>
   );
 }

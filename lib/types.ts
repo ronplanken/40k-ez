@@ -1,23 +1,21 @@
+import type { ArmyListCategory, LeaderRef } from "./army-list/types";
+
 export interface ArmyList {
-  raw: string;
   units: Unit[];
-  listName?: string;
   totalPoints?: number;
   faction?: string;
-  battleSize?: string;
   detachment?: string;
+  detachmentPoints?: number; // Detachment points the list spends
 }
 
 export interface Unit {
   name: string;
-  quantity?: number;
+  category: ArmyListCategory; // Characters, battleline, transports or other
   modelCount?: number; // Number of models in this unit
   points?: number;
-  weapons?: string[];
-  wargear?: string[];
-  isCharacter?: boolean; // True if from CHARACTERS section
-  sectionType?: string; // Section: CHARACTERS, BATTLELINE, DEDICATED TRANSPORTS, OTHER DATASHEETS, ALLIED UNITS
+  wargear?: string[]; // Weapons and other wargear
   enhancement?: string; // Enhancement name (e.g., "Frenzied Focus")
+  leaders?: LeaderRef[]; // Characters attached to this unit
 }
 
 export interface DisplayOptions {
@@ -26,6 +24,7 @@ export interface DisplayOptions {
   showWeapons: boolean;
   showDetachment: boolean;
   showEnhancements: boolean; // Show enhancements in non-condensed format
+  showAttachedLeaders: boolean; // Show an attached unit with the character that leads it
   condensedFormat: boolean; // New option for single-line condensed output
   forceSingleUnitPrefix: boolean; // Force "1x" prefix for single non-character units in condensed format
 }
@@ -36,6 +35,7 @@ export const defaultDisplayOptions: DisplayOptions = {
   showWeapons: false,
   showDetachment: true,
   showEnhancements: true,
+  showAttachedLeaders: false,
   condensedFormat: true,
   forceSingleUnitPrefix: false,
 };
