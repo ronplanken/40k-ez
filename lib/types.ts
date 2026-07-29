@@ -1,22 +1,18 @@
+import type { ArmyListCategory } from "./army-list/types";
+
 export interface ArmyList {
-  raw: string;
   units: Unit[];
-  listName?: string;
   totalPoints?: number;
   faction?: string;
-  battleSize?: string;
   detachment?: string;
 }
 
 export interface Unit {
   name: string;
-  quantity?: number;
+  category: ArmyListCategory; // Characters, battleline, transports or other
   modelCount?: number; // Number of models in this unit
   points?: number;
-  weapons?: string[];
-  wargear?: string[];
-  isCharacter?: boolean; // True if from CHARACTERS section
-  sectionType?: string; // Section: CHARACTERS, BATTLELINE, DEDICATED TRANSPORTS, OTHER DATASHEETS, ALLIED UNITS
+  wargear?: string[]; // Weapons and other wargear
   enhancement?: string; // Enhancement name (e.g., "Frenzied Focus")
 }
 

@@ -86,7 +86,7 @@ export function OptionsPanel({ options, onChange }: OptionsPanelProps) {
           <>
             <Toggle
               label="Units & Names"
-              description="Show unit names and quantities"
+              description="Show unit names"
               checked={options.showUnitsAndNames}
               onChange={(checked) =>
                 onChange({ ...options, showUnitsAndNames: checked })
