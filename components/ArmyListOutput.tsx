@@ -3,6 +3,7 @@
 import { Copy, Check } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { BUTTON_PRIMARY, BUTTON_SECONDARY, BlockHeader, CARD } from "./ui/panel";
 
 interface ArmyListOutputProps {
   value: string;
@@ -23,51 +24,38 @@ export function ArmyListOutput({ value }: ArmyListOutputProps) {
   };
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <label
-          htmlFor="army-list-output"
-          className="text-sm font-medium text-gray-700 dark:text-gray-300"
-        >
-          Formatted Output
-        </label>
-        {value && (
-          <button
-            onClick={handleCopy}
-            className={cn(
-              "flex items-center gap-2 px-3 py-1.5 text-sm rounded-md",
-              "transition-colors duration-200",
-              "focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-900",
-              copied
-                ? "bg-green-600 text-white hover:bg-green-700 focus:ring-green-500"
-                : "bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500"
-            )}
-          >
-            {copied ? (
-              <>
-                <Check className="h-4 w-4" />
-                Copied!
-              </>
-            ) : (
-              <>
-                <Copy className="h-4 w-4" />
-                Copy
-              </>
-            )}
-          </button>
-        )}
-      </div>
+    <div className={CARD}>
+      <BlockHeader
+        label="Formatted Output"
+        actions={
+          value ? (
+            <button
+              onClick={handleCopy}
+              className={copied ? BUTTON_PRIMARY : BUTTON_SECONDARY}
+            >
+              {copied ? (
+                <>
+                  <Check className="h-3.5 w-3.5" />
+                  Copied
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5" />
+                  Copy
+                </>
+              )}
+            </button>
+          ) : undefined
+        }
+      />
       <div
         className={cn(
-          "w-full min-h-64 px-4 py-3 rounded-lg",
-          "bg-gray-50 dark:bg-gray-900",
-          "border border-gray-300 dark:border-gray-700",
-          "text-gray-900 dark:text-gray-100",
-          "font-mono text-sm whitespace-pre-wrap"
+          "min-h-[8rem] w-full bg-bg-input px-4 py-3",
+          "whitespace-pre-wrap font-mono text-sm text-text-primary"
         )}
       >
         {value || (
-          <span className="text-gray-400 dark:text-gray-500 italic">
+          <span className="text-text-muted">
             Your formatted army list will appear here...
           </span>
         )}

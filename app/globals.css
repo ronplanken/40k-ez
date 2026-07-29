@@ -2,24 +2,77 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* Design tokens, kept in step with the wargaming streamer design system.
+   Dark is the default: the values sit on bare :root so an unclassed document
+   renders dark, and .light overrides them. */
+@layer base {
+  :root {
+    /* Animation */
+    --duration-fast: 100ms;
+    --duration-normal: 200ms;
+    --duration-slow: 300ms;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 
-.dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
-}
+    /* Status, the same in both themes */
+    --color-success: #22c55e;
+    --color-warning: #f59e0b;
+    --color-danger: #ef4444;
+  }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-}
+  :root,
+  .dark {
+    --color-bg-app: #0a0a0b;
+    --color-bg-card: #141416;
+    --color-bg-elevated: #1c1c1f;
+    --color-bg-input: #0a0a0b;
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+    --color-text-primary: #ffffff;
+    --color-text-secondary: #a1a1aa;
+    --color-text-muted: #8e8e99;
+
+    --color-accent: #f59e0b;
+    --color-accent-hover: #d97706;
+
+    --color-border: #27272a;
+    --color-border-focus: #3b82f6;
+
+    /* Panel chrome. The streamer app hardcodes white hairlines, which only
+       work on dark, so they are tokens here to keep light mode readable. */
+    --color-line: rgba(255, 255, 255, 0.06);
+    --color-line-strong: rgba(255, 255, 255, 0.1);
+    --color-surface-soft: rgba(255, 255, 255, 0.02);
+  }
+
+  .light {
+    --color-bg-app: #f8f9fa;
+    --color-bg-card: #ffffff;
+    --color-bg-elevated: #f1f3f5;
+    --color-bg-input: #ffffff;
+
+    --color-text-primary: #0a0a0b;
+    --color-text-secondary: #52525b;
+    --color-text-muted: #71717a;
+
+    --color-accent: #d97706;
+    --color-accent-hover: #b45309;
+
+    --color-border: #e4e4e7;
+    --color-border-focus: #3b82f6;
+
+    --color-line: rgba(10, 10, 11, 0.08);
+    --color-line-strong: rgba(10, 10, 11, 0.14);
+    --color-surface-soft: rgba(10, 10, 11, 0.02);
+  }
+
+  html {
+    @apply bg-bg-app text-text-primary;
+  }
+
+  body {
+    @apply min-h-screen antialiased;
+    transition:
+      background-color var(--duration-normal) var(--ease-out),
+      color var(--duration-normal) var(--ease-out);
   }
 }

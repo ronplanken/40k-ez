@@ -3,6 +3,7 @@
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OptionsPanel } from "./OptionsPanel";
+import { MICRO_LABEL } from "./ui/panel";
 import type { DisplayOptions } from "@/lib/types";
 
 interface SettingsModalProps {
@@ -24,7 +25,7 @@ export function SettingsModal({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+        className="fixed inset-0 z-40 bg-black/70 lg:hidden"
         onClick={onClose}
       />
 
@@ -32,36 +33,31 @@ export function SettingsModal({
       <div
         className={cn(
           "fixed bottom-0 left-0 right-0 z-50 lg:hidden",
-          "bg-white dark:bg-gray-800",
-          "rounded-t-2xl shadow-2xl",
-          "max-h-[80vh] overflow-y-auto",
-          "transform transition-transform duration-300 ease-out",
-          isOpen ? "translate-y-0" : "translate-y-full"
+          "border-t border-line bg-bg-card",
+          "max-h-[80vh] overflow-y-auto shadow-lg"
         )}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Display Settings
-          </h2>
+        <div className="sticky top-0 flex items-center gap-2.5 border-b border-line bg-bg-elevated px-4 py-2.5">
+          <span
+            aria-hidden
+            className="h-[13px] w-[3px] shrink-0 rounded-[1px] bg-accent"
+          />
+          <span className={MICRO_LABEL}>Display Options</span>
           <button
             onClick={onClose}
             className={cn(
-              "p-2 rounded-lg",
-              "hover:bg-gray-100 dark:hover:bg-gray-700",
-              "transition-colors duration-200",
-              "focus:outline-none focus:ring-2 focus:ring-blue-500"
+              "ml-auto rounded-sm p-1 text-text-muted",
+              "transition-colors duration-fast ease-out hover:bg-soft hover:text-text-primary",
+              "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             )}
             aria-label="Close settings"
           >
-            <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-4">
-          <OptionsPanel options={options} onChange={onChange} />
-        </div>
+        <OptionsPanel options={options} onChange={onChange} bare />
       </div>
     </>
   );
