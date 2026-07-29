@@ -585,3 +585,37 @@ Char1: 2x The Twin Lance (185 pts)
     3 with Battlesuit fists, Burst cannon
     1 with Battlesuit fists, Fusion blaster
 • 1x Stealth Shas'vre: Homing beacon, Marker Drone, Battlesuit fists, Pulse pistol, Fusion blaster`
+
+// Compact WTC export whose characters name the unit they join on a "Leading:"
+// line, and whose enhancements sit on an unlabelled "(+N pts)" line. Adepta
+// Sororitas.
+export const SORORITAS_LEADING = `+++++++++++++++++++++++++++++++++++++++++++++++
++ FACTION KEYWORD: Imperium - Adepta Sororitas
++ DETACHMENT: Hallowed Martyrs
++ TOTAL ARMY POINTS: 1000pts
++
++ WARLORD: Char1: Canoness with Jump Pack
++ NUMBER OF UNITS: 6
++++++++++++++++++++++++++++++++++++++++++++++++
+
+Char1: 1x Canoness with Jump Pack (80 pts): Blessed Halberd
+Enhancement: Divine Aspect (+5 pts)
+Leading: Zephyrim Squad
+
+Char2: 1x Palatine (60 pts): Palatine blade
+Leading: Battle Sisters Squad
+
+5x Zephyrim Squad (100 pts)
+• 1x Zephyrim Superior: Power weapon, Bolt pistol
+• 4x Zephyrim: Zephyrim pistol, Sacred banner
+
+10x Battle Sisters Squad (105 pts)
+• 1x Sister Superior: Plasma pistol, Power weapon
+• 9x Battle Sister: Boltgun, Close combat weapon
+
+Char3: 1x Canoness (70 pts): Blessed halberd
+Leading: Battle Sisters Squad
+
+10x Battle Sisters Squad (105 pts)
+• 1x Sister Superior: Plasma pistol, Power weapon
+• 9x Battle Sister: Boltgun, Close combat weapon`

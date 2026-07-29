@@ -13,6 +13,9 @@ export interface ParsedUnit {
   enhancement: string | null
   // Weapons and wargear, read from the deepest bullet level of the unit block.
   wargear: string[]
+  // Names of the characters attached to this unit. Empty for the characters
+  // themselves and for units nobody leads.
+  leaders: string[]
 }
 
 export interface ParsedArmyList {
@@ -20,6 +23,8 @@ export interface ParsedArmyList {
   faction: string | null
   subfaction: string | null
   detachment: string | null
+  // Detachment points the list spends. Only the app title export states it.
+  detachmentPoints: number | null
   // Total army points. From the header when present, else the sum of units.
   points: number | null
   units: ParsedUnit[]

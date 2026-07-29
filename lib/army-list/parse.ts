@@ -90,19 +90,29 @@ function toNumber(raw: string): number | null {
 // What a line inside a unit block says. Everything the parser reads is named
 // here, so each reader picks its kind instead of running its own regex over
 // every line, and wargear is simply what is left over.
-type LineKind = 'attachedAs' | 'enhancement' | 'warlord' | 'trailer' | 'content'
+type LineKind =
+  | 'attachedAs'
+  | 'leading'
+  | 'enhancement'
+  | 'warlord'
+  | 'trailer'
+  | 'content'
 
 interface BodyLine {
   /** Visual depth, with unbulleted continuations pulled up to their bullet. */
   depth: number
   text: string
   kind: LineKind
-  /** The enhancement name, for kind 'enhancement'. */
+  /** The enhancement name or the led unit's name, for those kinds. */
   value?: string
 }
 
 function classify(text: string): { kind: LineKind; value?: string } {
   if (/^attached as:/i.test(text)) return { kind: 'attachedAs' }
+  // WTC exports name the unit a character joins on its own line:
+  // "Leading: Zephyrim".
+  const leading = text.match(/^leading:\s*(.+)$/i)
+  if (leading) return { kind: 'leading', value: leading[1].trim() }
   // "Enhancement:" and "Enhancements:", dropping a trailing "(Upgrade)" or
   // "(+15 pts)" annotation the app sometimes appends.
   const labelled = text.match(
@@ -214,6 +224,7 @@ interface HeaderInfo {
   faction: string | null
   subfaction: string | null
   detachment: string | null
+  detachmentPoints: number | null
   points: number | null
 }
 
@@ -225,6 +236,7 @@ function parseHeader(preamble: string[]): HeaderInfo {
     faction: null,
     subfaction: null,
     detachment: null,
+    detachmentPoints: null,
     points: null,
   }
 
@@ -253,9 +265,10 @@ function parseHeader(preamble: string[]): HeaderInfo {
   }
 
   for (const line of lines.slice(1)) {
-    const det = line.match(/^(.+?)\s*\(\d+\s*detachment points\)/i)
+    const det = line.match(/^(.+?)\s*\((\d+)\s*detachment points\)/i)
     if (det && !info.detachment) {
       info.detachment = det[1].trim()
+      info.detachmentPoints = toNumber(det[2])
       continue
     }
     if (/^force disposition/i.test(line)) continue
@@ -281,6 +294,62 @@ function headerBlockEnd(lines: string[]): number {
     return i
   }
   return lines.length
+}
+
+// A unit plus what the export said about its attachment, which needs every
+// other unit to resolve. The two export families spell it differently: the app
+// puts a leader and its bodyguard together in the attached section, WTC names
+// the led unit on the character's "Leading:" line.
+interface WorkingUnit extends ParsedUnit {
+  /** Which run of attached units this belongs to. Each leader starts one. */
+  block: number | null
+  /** The unit named on a "Leading:" line, if the export carries one. */
+  leads: string | null
+}
+
+// The unit a "Leading:" line points at. Claimed units are off the table, so two
+// characters leading two squads of the same name take one each.
+function findLedUnit(
+  units: WorkingUnit[],
+  wanted: string,
+  claimed: Set<WorkingUnit>
+): WorkingUnit | undefined {
+  const want = wanted.toLowerCase()
+  const free = units.filter((u) => !claimed.has(u) && u.category !== 'characters')
+  return (
+    free.find((u) => u.name.toLowerCase() === want) ??
+    // The two sides do not always spell the unit out in full ("Leading:
+    // Zephyrim" against a "Zephyrim Squad"), so fall back to a prefix match.
+    free.find(
+      (u) => u.name.toLowerCase().startsWith(want) || want.startsWith(u.name.toLowerCase())
+    )
+  )
+}
+
+// Writes each character's name onto the unit it leads.
+function resolveAttachments(units: WorkingUnit[]): void {
+  const claimed = new Set<WorkingUnit>()
+
+  for (const character of units) {
+    if (character.category !== 'characters') continue
+
+    if (character.leads) {
+      const led = findLedUnit(units, character.leads, claimed)
+      if (led) {
+        led.leaders.push(character.name)
+        claimed.add(led)
+      }
+      continue
+    }
+
+    // Otherwise the units following it in its own block are the ones it leads.
+    if (character.block === null) continue
+    for (const other of units) {
+      if (other === character || other.block !== character.block) continue
+      if (other.category === 'characters') continue
+      other.leaders.push(character.name)
+    }
+  }
 }
 
 interface PendingUnit {
@@ -309,10 +378,14 @@ export function parseArmyList(input: string): ParsedArmyList {
   const bodyStart = firstSection >= 0 ? firstSection : headerBlockEnd(lines)
   const header = parseHeader(lines.slice(0, bodyStart))
 
-  const units: ParsedUnit[] = []
+  const units: WorkingUnit[] = []
   // Null until a section header is seen, so lists with no headers fall back to
   // per-unit inference (a "CharN" slot is a character, everything else "other").
   let currentSection: SectionCategory | null = null
+  // Numbers the runs of attached units. A new one starts at every leader, so
+  // the pairing does not depend on the "Attached unit N" labels, which not
+  // every app version writes.
+  let attachedBlock = 0
 
   // Accumulate the lines that belong to the unit currently being read so its
   // model count and flags can be computed when the next unit or section starts.
@@ -326,6 +399,8 @@ export function parseArmyList(input: string): ParsedArmyList {
       currentSection === 'attached'
         ? attachedCategory(body)
         : (currentSection ?? (pending.charId ? 'characters' : 'other'))
+    const attached = currentSection === 'attached'
+    if (attached && category === 'characters') attachedBlock++
     units.push({
       name: pending.name,
       points: pending.points,
@@ -333,6 +408,9 @@ export function parseArmyList(input: string): ParsedArmyList {
       category,
       enhancement: body.find((l) => l.kind === 'enhancement')?.value ?? null,
       wargear: collectWargear(body, depth, pending.sameLineWargear),
+      leaders: [],
+      block: attached ? attachedBlock : null,
+      leads: body.find((l) => l.kind === 'leading')?.value ?? null,
     })
     pending = null
   }
@@ -390,13 +468,15 @@ export function parseArmyList(input: string): ParsedArmyList {
     if (pending) pending.body.push(raw)
   }
   flush()
+  resolveAttachments(units)
 
   const summedPoints = units.reduce((sum, u) => sum + (u.points ?? 0), 0)
 
   // Emit in display order. Attached leaders and their bodyguards are interleaved
   // in the export, so without this the sections would come out shuffled.
   const ordered = CATEGORY_ORDER.flatMap((category) =>
-    units.filter((u) => u.category === category)
+    // Drop the parse-time attachment fields; they are resolved into `leaders`.
+    units.filter((u) => u.category === category).map(({ block, leads, ...unit }) => unit)
   )
 
   return {
@@ -404,6 +484,7 @@ export function parseArmyList(input: string): ParsedArmyList {
     faction: header.faction,
     subfaction: header.subfaction,
     detachment: header.detachment,
+    detachmentPoints: header.detachmentPoints,
     points: header.points ?? (summedPoints > 0 ? summedPoints : null),
     units: ordered,
   }

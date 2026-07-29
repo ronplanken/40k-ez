@@ -9,6 +9,7 @@ import {
   WORLD_EATERS,
   IRONSTORM,
   TAU_MONTKA,
+  SORORITAS_LEADING,
 } from './parse.fixtures'
 
 // Look up the first unit whose name matches, for per-unit assertions.
@@ -271,5 +272,73 @@ describe('parseArmyList - empty and junk input', () => {
   it('does not throw on free text with no units', () => {
     const list = parseArmyList('hello world\nthis is not a list')
     expect(list.units).toHaveLength(0)
+  })
+})
+
+describe('parseArmyList - attachments and detachment cost', () => {
+  it('reads the detachment cost from the app title export', () => {
+    const list = parseArmyList(BARK_AT_THE_MOON)
+    expect(list.detachmentPoints).toBe(3)
+  })
+
+  it('leaves the cost unset when the export does not state one', () => {
+    // The WTC "+" header block has a DETACHMENT line but no points.
+    expect(parseArmyList(CHAOS_DAEMONS_WTC).detachmentPoints).toBeNull()
+  })
+
+  it('names the leader on the unit it joined, per "Attached unit" block', () => {
+    const list = parseArmyList(BARK_AT_THE_MOON)
+    // Block 1 is Logan Grimnar with a 5-strong Wolf Guard Terminators, block 3
+    // is Arjac Rockfist with another one.
+    const terminators = list.units.filter((u) => u.name === 'Wolf Guard Terminators')
+    expect(terminators.map((u) => u.leaders)).toEqual([['Logan Grimnar'], ['Arjac Rockfist']])
+    expect(unit(list, 'Wolf Guard Headtakers').leaders).toEqual(['Ragnar Blackmane'])
+  })
+
+  it('leaves the leader itself unattached, so it keeps its own entry', () => {
+    const list = parseArmyList(BARK_AT_THE_MOON)
+    expect(unit(list, 'Logan Grimnar').leaders).toEqual([])
+    expect(unit(list, 'Logan Grimnar').category).toBe('characters')
+  })
+
+  it('gives an unled unit no leaders', () => {
+    const list = parseArmyList(BARK_AT_THE_MOON)
+    expect(unit(list, 'Gladiator Lancer').leaders).toEqual([])
+  })
+
+  it('reads the WTC "Leading:" line as the attachment', () => {
+    const list = parseArmyList(SORORITAS_LEADING)
+    expect(unit(list, 'Zephyrim Squad').leaders).toEqual(['Canoness with Jump Pack'])
+    expect(unit(list, 'Battle Sisters Squad').leaders).toEqual(['Palatine'])
+    expect(unit(list, 'Canoness with Jump Pack').enhancement).toBe('Divine Aspect')
+  })
+
+  it('keeps the "Leading:" line out of the wargear', () => {
+    const list = parseArmyList(SORORITAS_LEADING)
+    expect(unit(list, 'Canoness with Jump Pack').wargear).toEqual(['Blessed Halberd'])
+  })
+})
+
+describe('parseArmyList - two units of the same name, each with a leader', () => {
+  const list = parseArmyList(SORORITAS_LEADING)
+
+  it('gives each squad its own leader instead of piling them on the first', () => {
+    const squads = list.units.filter((u) => u.name === 'Battle Sisters Squad')
+    expect(squads).toHaveLength(2)
+    expect(squads.map((u) => u.leaders)).toEqual([['Palatine'], ['Canoness']])
+  })
+})
+
+describe('parseArmyList - attached units without the numbered labels', () => {
+  it('pairs each leader with its own bodyguard, labels or not', () => {
+    // Not every app version writes the "Attached Unit N" lines. A new block
+    // starts at each leader, so the pairing does not depend on them.
+    const stripped = BARK_AT_THE_MOON.split('\n')
+      .filter((l) => !/^attached unit \d+$/i.test(l.trim()))
+      .join('\n')
+    const list = parseArmyList(stripped)
+    expect(unit(list, 'Wolf Guard Headtakers').leaders).toEqual(['Ragnar Blackmane'])
+    const terminators = list.units.filter((u) => u.name === 'Wolf Guard Terminators')
+    expect(terminators.map((u) => u.leaders)).toEqual([['Logan Grimnar'], ['Arjac Rockfist']])
   })
 })

@@ -63,24 +63,14 @@ export function OptionsPanel({ options, onChange }: OptionsPanelProps) {
           }
         />
         {options.condensedFormat && (
-          <>
-            <Toggle
-              label="Show Enhancements"
-              description="Display character enhancements (e.g., Succubus (Chronoshard))"
-              checked={options.showEnhancements}
-              onChange={(checked) =>
-                onChange({ ...options, showEnhancements: checked })
-              }
-            />
-            <Toggle
-              label="Force 1x Prefix"
-              description="Show '1x' for single non-character units (e.g., 1x Raider)"
-              checked={options.forceSingleUnitPrefix}
-              onChange={(checked) =>
-                onChange({ ...options, forceSingleUnitPrefix: checked })
-              }
-            />
-          </>
+          <Toggle
+            label="Force 1x Prefix"
+            description="Show '1x' for single non-character units (e.g., 1x Raider)"
+            checked={options.forceSingleUnitPrefix}
+            onChange={(checked) =>
+              onChange({ ...options, forceSingleUnitPrefix: checked })
+            }
+          />
         )}
         {!options.condensedFormat && (
           <>
@@ -116,16 +106,24 @@ export function OptionsPanel({ options, onChange }: OptionsPanelProps) {
                 onChange({ ...options, showDetachment: checked })
               }
             />
-            <Toggle
-              label="Show Enhancements"
-              description="Display character enhancements"
-              checked={options.showEnhancements}
-              onChange={(checked) =>
-                onChange({ ...options, showEnhancements: checked })
-              }
-            />
           </>
         )}
+        <Toggle
+          label="Show Enhancements"
+          description="Display character enhancements (e.g., Succubus (Chronoshard))"
+          checked={options.showEnhancements}
+          onChange={(checked) =>
+            onChange({ ...options, showEnhancements: checked })
+          }
+        />
+        <Toggle
+          label="Attached Leaders"
+          description="Name the attached character behind its unit (e.g., 1x5 Wolf Guard Terminators (Logan Grimnar))"
+          checked={options.showAttachedLeaders}
+          onChange={(checked) =>
+            onChange({ ...options, showAttachedLeaders: checked })
+          }
+        />
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ export interface ArmyList {
   totalPoints?: number;
   faction?: string;
   detachment?: string;
+  detachmentPoints?: number; // Detachment points the list spends
 }
 
 export interface Unit {
@@ -14,6 +15,7 @@ export interface Unit {
   points?: number;
   wargear?: string[]; // Weapons and other wargear
   enhancement?: string; // Enhancement name (e.g., "Frenzied Focus")
+  leaders?: string[]; // Characters attached to this unit
 }
 
 export interface DisplayOptions {
@@ -22,6 +24,7 @@ export interface DisplayOptions {
   showWeapons: boolean;
   showDetachment: boolean;
   showEnhancements: boolean; // Show enhancements in non-condensed format
+  showAttachedLeaders: boolean; // Name the attached character behind its unit
   condensedFormat: boolean; // New option for single-line condensed output
   forceSingleUnitPrefix: boolean; // Force "1x" prefix for single non-character units in condensed format
 }
@@ -32,6 +35,7 @@ export const defaultDisplayOptions: DisplayOptions = {
   showWeapons: false,
   showDetachment: true,
   showEnhancements: true,
+  showAttachedLeaders: false,
   condensedFormat: true,
   forceSingleUnitPrefix: false,
 };

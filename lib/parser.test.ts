@@ -120,17 +120,17 @@ describe("formatArmyList - expanded", () => {
       army,
       options({ condensedFormat: false, showDetachment: false, showEnhancements: false })
     );
-    expect(out).toBe("Bjorn the Fell-Handed\n\nIntercessor Squad");
+    expect(out).toBe("Bjorn the Fell-Handed\n\n5x Intercessor Squad");
   });
 
   it("adds wargear in brackets when enabled", () => {
     const out = formatArmyList(army, options({ condensedFormat: false, showWeapons: true }));
-    expect(out).toContain("Intercessor Squad [Bolt pistol, Bolt rifle]");
+    expect(out).toContain("5x Intercessor Squad [Bolt pistol, Bolt rifle]");
   });
 
   it("adds the enhancement when enabled", () => {
     const out = formatArmyList(army, options({ condensedFormat: false }));
-    expect(out).toContain("Intercessor Squad - Enhancement: Wolf-touched");
+    expect(out).toContain("5x Intercessor Squad - Enhancement: Wolf-touched");
   });
 
   it("adds per-unit points and the army total when enabled", () => {
@@ -162,7 +162,7 @@ describe("parseArmyList - mapping onto the display model", () => {
 describe("parseArmyList + formatArmyList - 11th edition app export", () => {
   it("puts attached leaders up front and their bodyguards in their own bucket", () => {
     const out = formatArmyList(parseArmyList(BARK_AT_THE_MOON), options());
-    expect(out.startsWith("Space Marines - Space Wolves, Legends of Saga and Song and Saga of the Beastslayer: ")).toBe(
+    expect(out.startsWith("Space Marines - Space Wolves, Legends of Saga and Song and Saga of the Beastslayer (3 DP): ")).toBe(
       true
     );
     // Attached leaders read as characters, so no model count.
@@ -175,8 +175,79 @@ describe("parseArmyList + formatArmyList - 11th edition app export", () => {
 
   it("reads the detachment from the older flattened export too", () => {
     const out = formatArmyList(parseArmyList(LOGAN_STEEL_CHAIR), options());
-    expect(out.startsWith("Space Marines - Space Wolves, Legends of Saga and Song and Saga of the Great Wolf: ")).toBe(
+    expect(out.startsWith("Space Marines - Space Wolves, Legends of Saga and Song and Saga of the Great Wolf (3 DP): ")).toBe(
       true
     );
+  });
+});
+
+describe("formatArmyList - detachment cost", () => {
+  const army = list([{ name: "Raider" }], {
+    faction: "Drukhari",
+    detachment: "Realspace Raiders",
+    detachmentPoints: 3,
+  });
+
+  it("puts the cost behind the detachment in condensed", () => {
+    expect(formatArmyList(army, options())).toBe(
+      "Drukhari, Realspace Raiders (3 DP): Raider"
+    );
+  });
+
+  it("puts the cost behind the detachment in expanded", () => {
+    const out = formatArmyList(army, options({ condensedFormat: false }));
+    expect(out).toContain("Detachment: Realspace Raiders (3 DP)");
+  });
+
+  it("omits the cost when the export does not state one", () => {
+    const noCost = list([{ name: "Raider" }], {
+      faction: "Drukhari",
+      detachment: "Realspace Raiders",
+    });
+    expect(formatArmyList(noCost, options())).toBe("Drukhari, Realspace Raiders: Raider");
+  });
+});
+
+describe("formatArmyList - attached leaders", () => {
+  // The parser emits characters first, so the fixture mirrors that order.
+  const army = list([
+    { name: "Logan Grimnar", category: "characters", enhancement: "Wolf-touched" },
+    { name: "Arjac Rockfist", category: "characters" },
+    { name: "Wolf Guard Terminators", modelCount: 5, leaders: ["Logan Grimnar"] },
+    { name: "Wolf Guard Terminators", modelCount: 5, leaders: ["Arjac Rockfist"] },
+  ]);
+
+  it("leaves the output alone while the option is off", () => {
+    expect(formatArmyList(army, options())).toBe(
+      "Logan Grimnar (Wolf-touched), Arjac Rockfist, 2x5 Wolf Guard Terminators"
+    );
+  });
+
+  it("names the leader behind its unit, and keeps the character's own entry", () => {
+    const out = formatArmyList(army, options({ showAttachedLeaders: true }));
+    expect(out).toBe(
+      "Logan Grimnar (Wolf-touched), Arjac Rockfist, " +
+        "1x5 Wolf Guard Terminators (Logan Grimnar), 1x5 Wolf Guard Terminators (Arjac Rockfist)"
+    );
+  });
+
+  it("names the leader in the expanded form too", () => {
+    const out = formatArmyList(
+      army,
+      options({ condensedFormat: false, showAttachedLeaders: true, showEnhancements: false })
+    );
+    expect(out).toContain("5x Wolf Guard Terminators (Logan Grimnar)");
+  });
+});
+
+describe("formatArmyList - model counts in the expanded form", () => {
+  it("prefixes a multi-model unit with its size and leaves characters bare", () => {
+    const army = list([
+      { name: "Chaplain Grimaldus", category: "characters", modelCount: 4 },
+      { name: "Intercessor Squad", modelCount: 5 },
+      { name: "Gladiator Lancer", modelCount: 1 },
+    ]);
+    const out = formatArmyList(army, options({ condensedFormat: false }));
+    expect(out).toBe("Chaplain Grimaldus\n\n5x Intercessor Squad\nGladiator Lancer");
   });
 });
