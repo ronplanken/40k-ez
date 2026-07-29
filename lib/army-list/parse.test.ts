@@ -19,6 +19,10 @@ function unit(list: ParsedArmyList, name: string) {
   return found
 }
 
+function leaderNames(unit: { leaders: Array<{ name: string }> }): string[] {
+  return unit.leaders.map((l) => l.name)
+}
+
 function countByCategory(list: ParsedArmyList, category: ArmyListCategory): number {
   return list.units.filter((u) => u.category === category).length
 }
@@ -291,8 +295,8 @@ describe('parseArmyList - attachments and detachment cost', () => {
     // Block 1 is Logan Grimnar with a 5-strong Wolf Guard Terminators, block 3
     // is Arjac Rockfist with another one.
     const terminators = list.units.filter((u) => u.name === 'Wolf Guard Terminators')
-    expect(terminators.map((u) => u.leaders)).toEqual([['Logan Grimnar'], ['Arjac Rockfist']])
-    expect(unit(list, 'Wolf Guard Headtakers').leaders).toEqual(['Ragnar Blackmane'])
+    expect(terminators.map((u) => leaderNames(u))).toEqual([['Logan Grimnar'], ['Arjac Rockfist']])
+    expect(leaderNames(unit(list, 'Wolf Guard Headtakers'))).toEqual(['Ragnar Blackmane'])
   })
 
   it('leaves the leader itself unattached, so it keeps its own entry', () => {
@@ -308,8 +312,8 @@ describe('parseArmyList - attachments and detachment cost', () => {
 
   it('reads the WTC "Leading:" line as the attachment', () => {
     const list = parseArmyList(SORORITAS_LEADING)
-    expect(unit(list, 'Zephyrim Squad').leaders).toEqual(['Canoness with Jump Pack'])
-    expect(unit(list, 'Battle Sisters Squad').leaders).toEqual(['Palatine'])
+    expect(leaderNames(unit(list, 'Zephyrim Squad'))).toEqual(['Canoness with Jump Pack'])
+    expect(leaderNames(unit(list, 'Battle Sisters Squad'))).toEqual(['Palatine'])
     expect(unit(list, 'Canoness with Jump Pack').enhancement).toBe('Divine Aspect')
   })
 
@@ -325,7 +329,7 @@ describe('parseArmyList - two units of the same name, each with a leader', () =>
   it('gives each squad its own leader instead of piling them on the first', () => {
     const squads = list.units.filter((u) => u.name === 'Battle Sisters Squad')
     expect(squads).toHaveLength(2)
-    expect(squads.map((u) => u.leaders)).toEqual([['Palatine'], ['Canoness']])
+    expect(squads.map((u) => leaderNames(u))).toEqual([['Palatine'], ['Canoness']])
   })
 })
 
@@ -337,8 +341,42 @@ describe('parseArmyList - attached units without the numbered labels', () => {
       .filter((l) => !/^attached unit \d+$/i.test(l.trim()))
       .join('\n')
     const list = parseArmyList(stripped)
-    expect(unit(list, 'Wolf Guard Headtakers').leaders).toEqual(['Ragnar Blackmane'])
+    expect(leaderNames(unit(list, 'Wolf Guard Headtakers'))).toEqual(['Ragnar Blackmane'])
     const terminators = list.units.filter((u) => u.name === 'Wolf Guard Terminators')
-    expect(terminators.map((u) => u.leaders)).toEqual([['Logan Grimnar'], ['Arjac Rockfist']])
+    expect(terminators.map((u) => leaderNames(u))).toEqual([['Logan Grimnar'], ['Arjac Rockfist']])
+  })
+})
+
+describe('parseArmyList - a transport bought alongside an attached unit', () => {
+  // A Rhino in the same attached block is not led by the character. Marking it
+  // as led would fold it into the character's entry and drop it from the list.
+  const list = parseArmyList(`Sisters (500 points)
+
+Adepta Sororitas
+Hallowed Martyrs (3 Detachment Points)
+
+ATTACHED UNITS
+
+Attached Unit 1
+
+Palatine (60 points)
+• Attached as: Leader (Character)
+  • 1x Palatine blade
+
+Battle Sisters Squad (105 points)
+• Attached as: Bodyguard (Battleline)
+  • 1x Sister Superior
+    • 1x Power weapon
+  • 9x Battle Sister
+    • 9x Boltgun
+
+Immolator (125 points)
+• Attached as: Dedicated Transport
+  • 1x Immolation flamer`)
+
+  it('leads the squad but not the transport', () => {
+    expect(leaderNames(unit(list, 'Battle Sisters Squad'))).toEqual(['Palatine'])
+    expect(unit(list, 'Immolator').category).toBe('transports')
+    expect(unit(list, 'Immolator').leaders).toEqual([])
   })
 })

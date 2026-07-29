@@ -4,6 +4,13 @@
 
 export type ArmyListCategory = 'characters' | 'battleline' | 'transports' | 'other'
 
+/** A character, as referenced from the unit it joined. */
+export interface LeaderRef {
+  /** Its position in the unit list this parse returned. */
+  index: number
+  name: string
+}
+
 export interface ParsedUnit {
   name: string
   points: number | null
@@ -13,9 +20,9 @@ export interface ParsedUnit {
   enhancement: string | null
   // Weapons and wargear, read from the deepest bullet level of the unit block.
   wargear: string[]
-  // Names of the characters attached to this unit. Empty for the characters
-  // themselves and for units nobody leads.
-  leaders: string[]
+  // The characters attached to this unit. Empty for the characters themselves
+  // and for units nobody leads.
+  leaders: LeaderRef[]
 }
 
 export interface ParsedArmyList {

@@ -1,4 +1,4 @@
-import type { ArmyListCategory } from "./army-list/types";
+import type { ArmyListCategory, LeaderRef } from "./army-list/types";
 
 export interface ArmyList {
   units: Unit[];
@@ -15,7 +15,7 @@ export interface Unit {
   points?: number;
   wargear?: string[]; // Weapons and other wargear
   enhancement?: string; // Enhancement name (e.g., "Frenzied Focus")
-  leaders?: string[]; // Characters attached to this unit
+  leaders?: LeaderRef[]; // Characters attached to this unit
 }
 
 export interface DisplayOptions {
@@ -24,7 +24,7 @@ export interface DisplayOptions {
   showWeapons: boolean;
   showDetachment: boolean;
   showEnhancements: boolean; // Show enhancements in non-condensed format
-  showAttachedLeaders: boolean; // Name the attached character behind its unit
+  showAttachedLeaders: boolean; // Show an attached unit with the character that leads it
   condensedFormat: boolean; // New option for single-line condensed output
   forceSingleUnitPrefix: boolean; // Force "1x" prefix for single non-character units in condensed format
 }

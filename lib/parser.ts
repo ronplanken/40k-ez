@@ -45,12 +45,70 @@ function detachmentLabel(name?: string, points?: number): string | undefined {
 }
 
 /**
- * The attached characters, as a suffix: " (Logan Grimnar)". Only their names,
- * the characters keep their own entry with their enhancement and wargear.
+ * The attached characters, as a suffix: " (Logan Grimnar)". Used by the
+ * expanded form, which keeps a line per unit so nothing loses its points.
  */
-function leaderSuffix(leaders: string[] | undefined, options: DisplayOptions): string {
+function leaderSuffix(leaders: Unit["leaders"], options: DisplayOptions): string {
   if (!options.showAttachedLeaders || !leaders || leaders.length === 0) return "";
-  return ` (${leaders.join(", ")})`;
+  return ` (${leaders.map((l) => l.name).join(", ")})`;
+}
+
+/**
+ * How a unit reads with its size in front: "3x5 Intercessors", "2x5/1x10
+ * Intercessors" when the sizes differ, or the bare name for a lone single
+ * model.
+ */
+function sizeText(modelCounts: number[], name: string, options: DisplayOptions): string {
+  if (modelCounts.length === 0) return name;
+
+  const countMap = new Map<number, number>();
+  for (const models of modelCounts) {
+    countMap.set(models, (countMap.get(models) ?? 0) + 1);
+  }
+  // Most common size first.
+  const entries = Array.from(countMap.entries()).sort((a, b) => b[1] - a[1]);
+
+  const bare =
+    modelCounts.length === 1 && entries[0][0] === 1 && !options.forceSingleUnitPrefix;
+  if (bare) return name;
+
+  const sizeStr = entries
+    .map(([models, numUnits]) => (models === 1 ? `${numUnits}x` : `${numUnits}x${models}`))
+    .join("/");
+  return `${sizeStr} ${name}`;
+}
+
+/**
+ * The units a character joined, as a suffix: " + 1x6 Bloodcrushers". They are
+ * left out of the list itself, so each unit is named once. Units of the same
+ * name merge, same as they would in the list.
+ */
+function attachedSuffix(led: Unit[] | undefined, options: DisplayOptions): string {
+  if (!options.showAttachedLeaders || !led) return "";
+
+  const byName = new Map<string, number[]>();
+  for (const unit of led) {
+    const models = byName.get(unit.name);
+    if (models) models.push(unit.modelCount ?? 1);
+    else byName.set(unit.name, [unit.modelCount ?? 1]);
+  }
+
+  return Array.from(byName.entries())
+    .map(([name, models]) => ` + ${sizeText(models, name, options)}`)
+    .join("");
+}
+
+/** The units each character leads, keyed by the character's position. */
+function attachmentsByLeader(units: Unit[]): Map<number, Unit[]> {
+  const byLeader = new Map<number, Unit[]>();
+  for (const unit of units) {
+    for (const leader of unit.leaders ?? []) {
+      const led = byLeader.get(leader.index);
+      if (led) led.push(unit);
+      else byLeader.set(leader.index, [unit]);
+    }
+  }
+  return byLeader;
 }
 
 /**
@@ -70,22 +128,26 @@ interface UnitGroup {
   name: string;
   /** What the options append to the name: enhancement, attached leaders. */
   decoration: string;
-  instances: Array<{ modelCount: number; points?: number }>;
+  /** The model count of each unit in the group. */
+  instances: number[];
   isCharacter?: boolean;
 }
 
 function groupUnits(units: Unit[], options: DisplayOptions): UnitGroup[] {
   const grouped = new Map<string, UnitGroup>();
+  const attachedTo = attachmentsByLeader(units);
 
-  for (const unit of units) {
+  units.forEach((unit, index) => {
+    // An attached unit is written out with the character that leads it, so it
+    // is not listed again on its own.
+    if (options.showAttachedLeaders && unit.leaders?.length) return;
+
     const cleanName = unit.name.trim();
-    // Create a unique key:
-    // - If showEnhancements is ON: include enhancement in key to keep units with different enhancements separate
-    // - If showEnhancements is OFF: use only the name to group all instances together
     // Two units merge only when they would render identically, so the key is
     // the name plus whatever decoration the options put on it. Keying on the
     // output means a new option cannot forget to split its groups.
-    const decoration = enhancementSuffix(unit, options) + leaderSuffix(unit.leaders, options);
+    const decoration =
+      enhancementSuffix(unit, options) + attachedSuffix(attachedTo.get(index), options);
     const groupKey = cleanName + decoration;
 
     if (!grouped.has(groupKey)) {
@@ -97,11 +159,8 @@ function groupUnits(units: Unit[], options: DisplayOptions): UnitGroup[] {
       });
     }
 
-    grouped.get(groupKey)!.instances.push({
-      modelCount: unit.modelCount || 1,
-      points: unit.points,
-    });
-  }
+    grouped.get(groupKey)!.instances.push(unit.modelCount || 1);
+  });
 
   return Array.from(grouped.values());
 }
@@ -120,31 +179,14 @@ function formatCondensed(armyList: ArmyList, options: DisplayOptions): string {
   for (const group of grouped) {
     // Check if this is a character (show unit count only, not model count)
     if (group.isCharacter) {
-      // Characters carry a unit count, never a model count: "2x Slaughterbound".
-      const count = group.instances.length > 1 ? `${group.instances.length}x ` : "";
-      parts.push(count + group.name + group.decoration);
+      // Characters carry a unit count, never a model count, so every instance
+      // counts as one model: "2x Slaughterbound".
+      const asOneEach = group.instances.map(() => 1);
+      parts.push(sizeText(asOneEach, group.name, options) + group.decoration);
       continue;
     }
 
-    // Count the instances per squad size, most common first: "3x5", or
-    // "2x5/1x10" when the sizes differ.
-    const countMap = new Map<number, number>();
-    for (const instance of group.instances) {
-      countMap.set(instance.modelCount, (countMap.get(instance.modelCount) ?? 0) + 1);
-    }
-    const entries = Array.from(countMap.entries()).sort((a, b) => b[1] - a[1]);
-    const sizeStr = entries
-      .map(([modelCount, numUnits]) =>
-        modelCount === 1 ? `${numUnits}x` : `${numUnits}x${modelCount}`
-      )
-      .join("/");
-
-    // A lone single-model unit reads as just its name: "Raider".
-    const bare =
-      group.instances.length === 1 &&
-      entries[0][0] === 1 &&
-      !options.forceSingleUnitPrefix;
-    const unitText = bare ? group.name : `${sizeStr} ${group.name}`;
+    const unitText = sizeText(group.instances, group.name, options);
 
     parts.push(unitText + group.decoration);
   }

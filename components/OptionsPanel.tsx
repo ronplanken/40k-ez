@@ -118,7 +118,7 @@ export function OptionsPanel({ options, onChange }: OptionsPanelProps) {
         />
         <Toggle
           label="Attached Leaders"
-          description="Name the attached character behind its unit (e.g., 1x5 Wolf Guard Terminators (Logan Grimnar))"
+          description="Condensed: write the unit behind its character (e.g., Lord on Juggernaut + 1x6 Bloodcrushers). Expanded: name the character behind its unit."
           checked={options.showAttachedLeaders}
           onChange={(checked) =>
             onChange({ ...options, showAttachedLeaders: checked })

@@ -213,8 +213,16 @@ describe("formatArmyList - attached leaders", () => {
   const army = list([
     { name: "Logan Grimnar", category: "characters", enhancement: "Wolf-touched" },
     { name: "Arjac Rockfist", category: "characters" },
-    { name: "Wolf Guard Terminators", modelCount: 5, leaders: ["Logan Grimnar"] },
-    { name: "Wolf Guard Terminators", modelCount: 5, leaders: ["Arjac Rockfist"] },
+    {
+      name: "Wolf Guard Terminators",
+      modelCount: 5,
+      leaders: [{ index: 0, name: "Logan Grimnar" }],
+    },
+    {
+      name: "Wolf Guard Terminators",
+      modelCount: 5,
+      leaders: [{ index: 1, name: "Arjac Rockfist" }],
+    },
   ]);
 
   it("leaves the output alone while the option is off", () => {
@@ -223,15 +231,43 @@ describe("formatArmyList - attached leaders", () => {
     );
   });
 
-  it("names the leader behind its unit, and keeps the character's own entry", () => {
+  it("writes the attached unit behind its character, and drops it from the list", () => {
     const out = formatArmyList(army, options({ showAttachedLeaders: true }));
     expect(out).toBe(
-      "Logan Grimnar (Wolf-touched), Arjac Rockfist, " +
-        "1x5 Wolf Guard Terminators (Logan Grimnar), 1x5 Wolf Guard Terminators (Arjac Rockfist)"
+      "Logan Grimnar (Wolf-touched) + 1x5 Wolf Guard Terminators, " +
+        "Arjac Rockfist + 1x5 Wolf Guard Terminators"
     );
   });
 
-  it("names the leader in the expanded form too", () => {
+  it("gives each character its own unit when both have the same name", () => {
+    const twins = list([
+      {
+        name: "Lord on Juggernaut",
+        category: "characters",
+        enhancement: "Disciple of Khorne",
+      },
+      { name: "Lord on Juggernaut", category: "characters" },
+      { name: "Bloodcrushers", modelCount: 6, leaders: [{ index: 0, name: "Lord on Juggernaut" }] },
+      { name: "Bloodcrushers", modelCount: 3, leaders: [{ index: 1, name: "Lord on Juggernaut" }] },
+    ]);
+    expect(formatArmyList(twins, options({ showAttachedLeaders: true }))).toBe(
+      "Lord on Juggernaut (Disciple of Khorne) + 1x6 Bloodcrushers, " +
+        "Lord on Juggernaut + 1x3 Bloodcrushers"
+    );
+  });
+
+  it("merges attached units of the same name, same as the list does", () => {
+    const doubled = list([
+      { name: "Palatine", category: "characters" },
+      { name: "Battle Sisters Squad", modelCount: 5, leaders: [{ index: 0, name: "Palatine" }] },
+      { name: "Battle Sisters Squad", modelCount: 5, leaders: [{ index: 0, name: "Palatine" }] },
+    ]);
+    expect(formatArmyList(doubled, options({ showAttachedLeaders: true }))).toBe(
+      "Palatine + 2x5 Battle Sisters Squad"
+    );
+  });
+
+  it("names the leader behind its unit in the expanded form, which keeps a line per unit", () => {
     const out = formatArmyList(
       army,
       options({ condensedFormat: false, showAttachedLeaders: true, showEnhancements: false })

@@ -300,7 +300,9 @@ function headerBlockEnd(lines: string[]): number {
 // other unit to resolve. The two export families spell it differently: the app
 // puts a leader and its bodyguard together in the attached section, WTC names
 // the led unit on the character's "Leading:" line.
-interface WorkingUnit extends ParsedUnit {
+interface WorkingUnit extends Omit<ParsedUnit, 'leaders'> {
+  /** The characters leading this unit, held by reference until ordering. */
+  leaders: WorkingUnit[]
   /** Which run of attached units this belongs to. Each leader starts one. */
   block: number | null
   /** The unit named on a "Leading:" line, if the export carries one. */
@@ -336,7 +338,7 @@ function resolveAttachments(units: WorkingUnit[]): void {
     if (character.leads) {
       const led = findLedUnit(units, character.leads, claimed)
       if (led) {
-        led.leaders.push(character.name)
+        led.leaders.push(character)
         claimed.add(led)
       }
       continue
@@ -347,7 +349,10 @@ function resolveAttachments(units: WorkingUnit[]): void {
     for (const other of units) {
       if (other === character || other.block !== character.block) continue
       if (other.category === 'characters') continue
-      other.leaders.push(character.name)
+      // A dedicated transport in the block is not led by the character, it is
+      // just bought alongside it.
+      if (other.category === 'transports') continue
+      other.leaders.push(character)
     }
   }
 }
@@ -475,9 +480,15 @@ export function parseArmyList(input: string): ParsedArmyList {
   // Emit in display order. Attached leaders and their bodyguards are interleaved
   // in the export, so without this the sections would come out shuffled.
   const ordered = CATEGORY_ORDER.flatMap((category) =>
-    // Drop the parse-time attachment fields; they are resolved into `leaders`.
-    units.filter((u) => u.category === category).map(({ block, leads, ...unit }) => unit)
+    units.filter((u) => u.category === category)
   )
+  // Leaders are held by reference while parsing. Now that the order is final,
+  // resolve them to a position so nothing downstream needs object identity.
+  const position = new Map(ordered.map((u, i) => [u, i]))
+  const display: ParsedUnit[] = ordered.map(({ block, leads, ...unit }) => ({
+    ...unit,
+    leaders: unit.leaders.map((l) => ({ index: position.get(l as WorkingUnit)!, name: l.name })),
+  }))
 
   return {
     name: header.name,
@@ -486,6 +497,6 @@ export function parseArmyList(input: string): ParsedArmyList {
     detachment: header.detachment,
     detachmentPoints: header.detachmentPoints,
     points: header.points ?? (summedPoints > 0 ? summedPoints : null),
-    units: ordered,
+    units: display,
   }
 }
