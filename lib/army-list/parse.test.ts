@@ -261,9 +261,9 @@ describe('parseArmyList - compact WTC export with no section headers (Tau)', () 
     // Written as "... 3x Missile pod ..." and "Broadside Shas'vre: Marker Drone".
     expect(unit(list, 'Commander in Enforcer Battlesuit').wargear).toContain('Missile pod')
     expect(unit(list, 'Broadside Battlesuits').wargear).toContain('Marker Drone')
-    expect(
-      list.units.every((u) => u.wargear.every((w) => !/^\d+(x|\s+with)\s/i.test(w)))
-    ).toBe(true)
+    expect(list.units.every((u) => u.wargear.every((w) => !/^\d+(x|\s+with)\s/i.test(w)))).toBe(
+      true
+    )
   })
 
   it('reads the enhancement of a compact-export character', () => {

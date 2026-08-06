@@ -1,10 +1,4 @@
-import type {
-  ArmyList,
-  ArmyListCategory,
-  ArmyListUnit,
-  AttachedRole,
-  LeaderRef,
-} from './types'
+import type { ArmyList, ArmyListCategory, ArmyListUnit, AttachedRole, LeaderRef } from './types'
 
 // SHARED FILE, kept byte-identical between the 40k-ez app and the gd streamer
 // app. See the note at the top of `types.ts`.
@@ -172,13 +166,7 @@ function toNumber(raw: string): number | null {
 // What a line inside a unit block says. Everything the parser reads is named
 // here, so each reader picks its kind instead of running its own regex over
 // every line, and wargear is simply what is left over.
-type LineKind =
-  | 'attachedAs'
-  | 'leading'
-  | 'enhancement'
-  | 'warlord'
-  | 'trailer'
-  | 'content'
+type LineKind = 'attachedAs' | 'leading' | 'enhancement' | 'warlord' | 'trailer' | 'content'
 
 interface BodyLine {
   /** Visual depth, with unbulleted continuations pulled up to their bullet. */
@@ -512,9 +500,7 @@ function findLedUnit(
     free.find((u) => u.name.toLowerCase() === want) ??
     // The two sides do not always spell the unit out in full ("Leading:
     // Zephyrim" against a "Zephyrim Squad"), so fall back to a prefix match.
-    free.find(
-      (u) => u.name.toLowerCase().startsWith(want) || want.startsWith(u.name.toLowerCase())
-    )
+    free.find((u) => u.name.toLowerCase().startsWith(want) || want.startsWith(u.name.toLowerCase()))
   )
 }
 

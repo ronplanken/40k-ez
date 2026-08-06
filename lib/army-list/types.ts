@@ -7,6 +7,9 @@
 // apart is how the same bugs ended up in both. Change it in one repo, copy the
 // four files to the other, and run the tests in both. Anything app-specific
 // belongs in the layer that maps this onto a display model, not in here.
+//
+// Formatting follows the streamer's prettier config, which its lint enforces.
+// Run prettier there before copying back, or CI rejects the copy.
 
 export type ArmyListCategory = 'characters' | 'battleline' | 'transports' | 'other'
 
