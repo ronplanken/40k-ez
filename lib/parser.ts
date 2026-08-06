@@ -1,17 +1,26 @@
 import type { ArmyList, Unit, DisplayOptions } from "./types";
 import { parseArmyList as parseExport } from "./army-list/parse";
+import { CATEGORY_ORDER } from "./army-list/types";
 
 /**
  * Parses a pasted army list into the shape the formatter uses.
  *
- * The reading is done by ./army-list/parse, which handles the app title export,
- * the WTC "+++" export and compact exports with no section headers. This maps
- * its result onto the display model.
+ * The reading is done by ./army-list/parse, the parser shared with the streamer
+ * app, which handles the app title export, the WTC "+++" export and compact
+ * exports with no section headers. This maps its result onto the display model.
  */
 export function parseArmyList(text: string): ArmyList {
   const parsed = parseExport(text);
 
-  const units: Unit[] = parsed.units.map((u) => ({
+  // The export interleaves attached leaders and bodyguards, so the output is
+  // grouped by category. The parser keeps the export's own order, since where
+  // to show a unit is this app's decision.
+  const ordered = CATEGORY_ORDER.flatMap((category) =>
+    parsed.units.filter((u) => u.category === category)
+  );
+
+  const units: Unit[] = ordered.map((u) => ({
+    id: u.id,
     name: u.name,
     category: u.category,
     points: u.points ?? undefined,
@@ -31,6 +40,7 @@ export function parseArmyList(text: string): ArmyList {
     units,
     totalPoints: parsed.points ?? undefined,
     faction: faction ?? undefined,
+    disposition: parsed.disposition ?? undefined,
     detachment: parsed.detachment ?? undefined,
     detachmentPoints: parsed.detachmentPoints ?? undefined,
   };
@@ -98,17 +108,42 @@ function attachedSuffix(led: Unit[] | undefined, options: DisplayOptions): strin
     .join("");
 }
 
-/** The units each character leads, keyed by the character's position. */
-function attachmentsByLeader(units: Unit[]): Map<number, Unit[]> {
-  const byLeader = new Map<number, Unit[]>();
+/** The units each character leads, keyed by the character's unit id. */
+function attachmentsByLeader(units: Unit[]): Map<string, Unit[]> {
+  const byLeader = new Map<string, Unit[]>();
   for (const unit of units) {
     for (const leader of unit.leaders ?? []) {
-      const led = byLeader.get(leader.index);
+      const led = byLeader.get(leader.id);
       if (led) led.push(unit);
-      else byLeader.set(leader.index, [unit]);
+      else byLeader.set(leader.id, [unit]);
     }
   }
   return byLeader;
+}
+
+/**
+ * The characters that share a block with another character, such as a Painboy
+ * attached as support alongside a Warboss. The block is one group, so the first
+ * character writes it out and the rest are folded into that same entry instead
+ * of repeating the unit once per character.
+ */
+function coLeaders(units: Unit[]): { folded: Set<string>; byFirst: Map<string, Unit[]> } {
+  const folded = new Set<string>();
+  const byFirst = new Map<string, Unit[]>();
+  const byId = new Map(units.map((u) => [u.id, u]));
+
+  for (const unit of units) {
+    const leaders = unit.leaders ?? [];
+    for (const leader of leaders.slice(1)) {
+      const character = byId.get(leader.id);
+      if (!character || folded.has(leader.id)) continue;
+      folded.add(leader.id);
+      const rest = byFirst.get(leaders[0].id);
+      if (rest) rest.push(character);
+      else byFirst.set(leaders[0].id, [character]);
+    }
+  }
+  return { folded, byFirst };
 }
 
 /**
@@ -136,18 +171,27 @@ interface UnitGroup {
 function groupUnits(units: Unit[], options: DisplayOptions): UnitGroup[] {
   const grouped = new Map<string, UnitGroup>();
   const attachedTo = attachmentsByLeader(units);
+  const { folded, byFirst } = coLeaders(units);
 
-  units.forEach((unit, index) => {
-    // An attached unit is written out with the character that leads it, so it
-    // is not listed again on its own.
-    if (options.showAttachedLeaders && unit.leaders?.length) return;
+  units.forEach((unit) => {
+    // An attached unit is written out with the character that leads it, and a
+    // character sharing that block is written out with the first character of
+    // it, so neither is listed again on its own.
+    if (options.showAttachedLeaders && (unit.leaders?.length || folded.has(unit.id))) return;
 
     const cleanName = unit.name.trim();
+    // The rest of this character's block: " + Painboy". Only while the option
+    // writes a block as one entry; otherwise every character stands alone.
+    const shared = options.showAttachedLeaders
+      ? (byFirst.get(unit.id) ?? [])
+          .map((c) => ` + ${c.name.trim()}${enhancementSuffix(c, options)}`)
+          .join("")
+      : "";
     // Two units merge only when they would render identically, so the key is
     // the name plus whatever decoration the options put on it. Keying on the
     // output means a new option cannot forget to split its groups.
     const decoration =
-      enhancementSuffix(unit, options) + attachedSuffix(attachedTo.get(index), options);
+      enhancementSuffix(unit, options) + shared + attachedSuffix(attachedTo.get(unit.id), options);
     const groupKey = cleanName + decoration;
 
     if (!grouped.has(groupKey)) {
@@ -191,9 +235,11 @@ function formatCondensed(armyList: ArmyList, options: DisplayOptions): string {
     parts.push(unitText + group.decoration);
   }
 
-  // Build the prefix with faction and detachment
+  // Faction, then the force disposition, then the detachment.
   const detachment = detachmentLabel(armyList.detachment, armyList.detachmentPoints);
-  const prefix = [armyList.faction, detachment].filter(Boolean).join(', ');
+  const prefix = [armyList.faction, armyList.disposition, detachment]
+    .filter(Boolean)
+    .join(', ');
 
   return (prefix ? `${prefix}: ` : '') + parts.join(', ');
 }
@@ -219,6 +265,10 @@ export function formatArmyList(
   // Header section
   if (options.showDetachment && armyList.faction) {
     lines.push(`Faction: ${armyList.faction}`);
+  }
+
+  if (options.showDetachment && armyList.disposition) {
+    lines.push(`Disposition: ${armyList.disposition}`);
   }
 
   if (options.showDetachment) {

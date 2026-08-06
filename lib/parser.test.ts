@@ -10,7 +10,7 @@ function options(overrides: Partial<DisplayOptions> = {}): DisplayOptions {
 
 function list(units: Array<Partial<Unit> & { name: string }>, header: Partial<ArmyList> = {}): ArmyList {
   return {
-    units: units.map((u) => ({ modelCount: 1, category: "other" as const, ...u })),
+    units: units.map((u, i) => ({ id: `u-${i}`, modelCount: 1, category: "other" as const, ...u })),
     ...header,
   };
 }
@@ -162,9 +162,12 @@ describe("parseArmyList - mapping onto the display model", () => {
 describe("parseArmyList + formatArmyList - 11th edition app export", () => {
   it("puts attached leaders up front and their bodyguards in their own bucket", () => {
     const out = formatArmyList(parseArmyList(BARK_AT_THE_MOON), options());
-    expect(out.startsWith("Space Marines - Space Wolves, Legends of Saga and Song and Saga of the Beastslayer (3 DP): ")).toBe(
-      true
-    );
+    expect(
+      out.startsWith(
+        "Space Marines - Space Wolves, Purge the Foe, " +
+          "Legends of Saga and Song and Saga of the Beastslayer (3 DP): "
+      )
+    ).toBe(true);
     // Attached leaders read as characters, so no model count.
     expect(out).toContain("Logan Grimnar");
     expect(out).not.toContain("1x1 Logan Grimnar");
@@ -175,9 +178,12 @@ describe("parseArmyList + formatArmyList - 11th edition app export", () => {
 
   it("reads the detachment from the older flattened export too", () => {
     const out = formatArmyList(parseArmyList(LOGAN_STEEL_CHAIR), options());
-    expect(out.startsWith("Space Marines - Space Wolves, Legends of Saga and Song and Saga of the Great Wolf (3 DP): ")).toBe(
-      true
-    );
+    expect(
+      out.startsWith(
+        "Space Marines - Space Wolves, Take and Hold, " +
+          "Legends of Saga and Song and Saga of the Great Wolf (3 DP): "
+      )
+    ).toBe(true);
   });
 });
 
@@ -216,12 +222,12 @@ describe("formatArmyList - attached leaders", () => {
     {
       name: "Wolf Guard Terminators",
       modelCount: 5,
-      leaders: [{ index: 0, name: "Logan Grimnar" }],
+      leaders: [{ id: "u-0", name: "Logan Grimnar" }],
     },
     {
       name: "Wolf Guard Terminators",
       modelCount: 5,
-      leaders: [{ index: 1, name: "Arjac Rockfist" }],
+      leaders: [{ id: "u-1", name: "Arjac Rockfist" }],
     },
   ]);
 
@@ -247,8 +253,8 @@ describe("formatArmyList - attached leaders", () => {
         enhancement: "Disciple of Khorne",
       },
       { name: "Lord on Juggernaut", category: "characters" },
-      { name: "Bloodcrushers", modelCount: 6, leaders: [{ index: 0, name: "Lord on Juggernaut" }] },
-      { name: "Bloodcrushers", modelCount: 3, leaders: [{ index: 1, name: "Lord on Juggernaut" }] },
+      { name: "Bloodcrushers", modelCount: 6, leaders: [{ id: "u-0", name: "Lord on Juggernaut" }] },
+      { name: "Bloodcrushers", modelCount: 3, leaders: [{ id: "u-1", name: "Lord on Juggernaut" }] },
     ]);
     expect(formatArmyList(twins, options({ showAttachedLeaders: true }))).toBe(
       "Lord on Juggernaut (Disciple of Khorne) + 1x6 Bloodcrushers, " +
@@ -259,8 +265,8 @@ describe("formatArmyList - attached leaders", () => {
   it("merges attached units of the same name, same as the list does", () => {
     const doubled = list([
       { name: "Palatine", category: "characters" },
-      { name: "Battle Sisters Squad", modelCount: 5, leaders: [{ index: 0, name: "Palatine" }] },
-      { name: "Battle Sisters Squad", modelCount: 5, leaders: [{ index: 0, name: "Palatine" }] },
+      { name: "Battle Sisters Squad", modelCount: 5, leaders: [{ id: "u-0", name: "Palatine" }] },
+      { name: "Battle Sisters Squad", modelCount: 5, leaders: [{ id: "u-0", name: "Palatine" }] },
     ]);
     expect(formatArmyList(doubled, options({ showAttachedLeaders: true }))).toBe(
       "Palatine + 2x5 Battle Sisters Squad"
@@ -285,5 +291,104 @@ describe("formatArmyList - model counts in the expanded form", () => {
     ]);
     const out = formatArmyList(army, options({ condensedFormat: false }));
     expect(out).toBe("Chaplain Grimaldus\n\n5x Intercessor Squad\nGladiator Lancer");
+  });
+});
+
+describe("formatArmyList - a block led by more than one character", () => {
+  const list = `My list (2000 points)
+
+Orks
+Equatorial Hordes (3 Detachment Points)
+
+ATTACHED UNITS
+
+Attached unit 1
+
+Ghazghkull Thraka (235 Points)
+* Attached as: Leader (Character)
+
+Painboy (90 Points)
+* Attached as: Support (Character)
+* Enhancements: Bionik Workshop
+
+Boyz (160 Points)
+* Attached as: Bodyguard (Battleline)
+* 19x Boy
+◦ 18x Choppa
+* 1x Boss Nob
+◦ 1x Power klaw
+`
+
+  it("leaves every character standing alone while the option is off", () => {
+    const output = formatArmyList(parseArmyList(list), defaultDisplayOptions);
+    expect(output).toContain("Ghazghkull Thraka, Painboy (Bionik Workshop), 1x20 Boyz");
+    expect(output).not.toContain("+");
+  });
+
+  it("writes the block once, not once per character", () => {
+    const output = formatArmyList(parseArmyList(list), {
+      ...defaultDisplayOptions,
+      showAttachedLeaders: true,
+    })
+    expect(output).toContain(
+      "Ghazghkull Thraka + Painboy (Bionik Workshop) + 1x20 Boyz"
+    )
+    // The squad and the support character are not listed again on their own.
+    expect(output.match(/Boyz/g)).toHaveLength(1)
+    expect(output.match(/Painboy/g)).toHaveLength(1)
+  })
+})
+
+describe("parseArmyList - display order", () => {
+  it("groups the units by category, whatever order the export lists them in", () => {
+    // The export interleaves attached leaders and bodyguards. The shared parser
+    // keeps its order, so this app is the one that groups them.
+    const list = parseArmyList(BARK_AT_THE_MOON);
+    const seen = list.units.map((u) => u.category);
+    expect([...new Set(seen)]).toEqual(["characters", "battleline", "other"]);
+  });
+});
+
+describe("formatArmyList - force disposition", () => {
+  const list = `Itz Da Pirate's Lyf 4 Me (1,995 Points)
+
+Orks
+Equatorial Hordes and Freebooter Krew (3 Detachment Points)
+Take and Hold
+Strike Force (2,000 Points)
+
+CHARACTERS
+
+Warboss (110 Points)
+`;
+
+  it("names it between the faction and the detachment", () => {
+    expect(formatArmyList(parseArmyList(list), options())).toBe(
+      "Orks, Take and Hold, Equatorial Hordes and Freebooter Krew (3 DP): Warboss"
+    );
+  });
+
+  it("gives it its own line in the expanded form", () => {
+    const out = formatArmyList(parseArmyList(list), options({ condensedFormat: false }));
+    expect(out.split("\n").slice(0, 3)).toEqual([
+      "Faction: Orks",
+      "Disposition: Take and Hold",
+      "Detachment: Equatorial Hordes and Freebooter Krew (3 DP)",
+    ]);
+  });
+
+  it("leaves the prefix alone when the export names none", () => {
+    const noDisposition = `My list (2000 points)
+
+Drukhari
+Realspace Raiders (3 Detachment Points)
+
+CHARACTERS
+
+Archon (80 points)
+`;
+    expect(formatArmyList(parseArmyList(noDisposition), options())).toBe(
+      "Drukhari, Realspace Raiders (3 DP): Archon"
+    );
   });
 });

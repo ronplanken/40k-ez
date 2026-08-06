@@ -619,3 +619,50 @@ Leading: Battle Sisters Squad
 10x Battle Sisters Squad (105 pts)
 • 1x Sister Superior: Plasma pistol, Power weapon
 • 9x Battle Sister: Boltgun, Close combat weapon`
+
+// A locale export that separates thousands with a space instead of a comma,
+// with an ALLIED UNITS section (the Warhound sits past the 2000 point battle
+// size, which is why the title total exceeds the Strike Force line).
+export const RED_GEAR_SPACED_POINTS = `Red gear (1\u00a0995 Points)
+
+Tonight on red gear - Kharn gets impaled by a rhino, the lads slaughter each other in gladiatorial combat, and Angron lifts a warhound titan.
+
+World Eaters
+Brazen Engines, Butchers of Khorne, and Vessels of Wrath (3 Detachment Points)
+Force Dispositions: Disruption, Priority Assets, Purge the Foe
+Strike Force (2\u00a0000 Points)
+
+CHARACTERS
+
+Angron (350 Points)
+  • 1x Samni’arius and Spinegrinder
+
+Khârn the Betrayer (115 Points)
+  • 1x Gorechild
+  • 1x Plasma pistol
+
+BATTLELINE
+
+Khorne Berzerkers (345 Points)
+  • 1x Khorne Berzerker Champion
+     ◦ 1x Chainblade
+     ◦ 1x Icon of Khorne
+     ◦ 1x Plasma pistol
+  • 19x Khorne Berzerker
+     ◦ 19x Bolt pistol
+     ◦ 19x Chainblade
+
+DEDICATED TRANSPORTS
+
+Chaos Rhino (85 Points)
+  • 1x Armoured tracks
+  • 1x Combi-bolter
+
+ALLIED UNITS
+
+Chaos Warhound Titan (1\u00a0100 Points)
+  • 1x Warhound feet
+  • 1x Warhound plasma blastgun
+  • 1x Warhound vulcan mega-bolter
+
+Exported with App Version: v2.0.5 (2), Data Version: v886`
