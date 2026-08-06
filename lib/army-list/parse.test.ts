@@ -10,6 +10,7 @@ import {
   IRONSTORM,
   TAU_MONTKA,
   SORORITAS_LEADING,
+  RED_GEAR_SPACED_POINTS,
 } from './parse.fixtures'
 
 // Look up the first unit whose name matches, for per-unit assertions.
@@ -378,5 +379,385 @@ Immolator (125 points)
     expect(leaderNames(unit(list, 'Battle Sisters Squad'))).toEqual(['Palatine'])
     expect(unit(list, 'Immolator').category).toBe('transports')
     expect(unit(list, 'Immolator').leaders).toEqual([])
+  })
+})
+
+describe('parseArmyList - space thousands separator with allied units (Red gear)', () => {
+  const list = parseArmyList(RED_GEAR_SPACED_POINTS)
+
+  it('reads a title total written with a space separator', () => {
+    expect(list.name).toBe('Red gear')
+    expect(list.points).toBe(1995)
+  })
+
+  it('parses the allied unit and its space-separated points', () => {
+    expect(unit(list, 'Chaos Warhound Titan').points).toBe(1100)
+    expect(unit(list, 'Chaos Warhound Titan').category).toBe('other')
+  })
+
+  it('keeps every unit and drops the battle-size line', () => {
+    expect(list.units.map((u) => u.name)).toEqual([
+      'Angron',
+      'Khârn the Betrayer',
+      'Khorne Berzerkers',
+      'Chaos Rhino',
+      'Chaos Warhound Titan',
+    ])
+  })
+
+  it('reads the faction and detachment past the spaced-points lines', () => {
+    expect(list.faction).toBe('World Eaters')
+    expect(list.detachment).toBe('Brazen Engines, Butchers of Khorne, and Vessels of Wrath')
+    expect(list.detachmentPoints).toBe(3)
+  })
+
+  it('leaves the free-text description out of the faction', () => {
+    expect(list.subfaction).toBeNull()
+  })
+
+  it('still counts models in the squad', () => {
+    expect(unit(list, 'Khorne Berzerkers').models).toBe(20)
+    expect(unit(list, 'Angron').models).toBe(1)
+  })
+})
+
+describe('parseArmyList - 11th edition exports', () => {
+  const list = `Theme song (1995 points)
+
+Space Marines
+Salamanders
+Forgefather's Seekers and Librarius Conclave (3 Detachment Points)
+Priority Assets
+Strike Force (2000 points)
+
+Attached Units
+Attached Unit 1
+
+Librarian (95 points)
+• Attached as: Leader (Character)
+• Enhancement: Temporal Corridor
+
+Painboy (105 points)
+• Attached as: Support (Character)
+
+Infernus Squad (180 points)
+• Attached as: Bodyguard
+
+Attached Unit 2
+
+Captain (85 points)
+• Attached as: Leader (Character)
+
+Vanguard Veterans (210 points)
+• Attached as: Bodyguard (Battleline)
+
+CHARACTERS
+
+Vulkan He'stan (85 points)
+`
+
+  it('keeps a disposition line out of the subfaction', () => {
+    const parsed = parseArmyList(list)
+    expect(parsed.subfaction).toBe('Salamanders')
+    expect(parsed.disposition).toBe('Priority Assets')
+  })
+
+  it('names every character of an attached block on the unit it joined', () => {
+    const parsed = parseArmyList(list)
+    // The Painboy is attached as support, so it joins the Librarian's block
+    // instead of starting one of its own.
+    expect(leaderNames(unit(parsed, 'Infernus Squad'))).toEqual(['Librarian', 'Painboy'])
+    expect(leaderNames(unit(parsed, 'Vanguard Veterans'))).toEqual(['Captain'])
+  })
+
+  it('leaves units outside an attached block unattached', () => {
+    const parsed = parseArmyList(list)
+    expect(leaderNames(unit(parsed, "Vulkan He'stan"))).toEqual([])
+  })
+
+  it('reads a dot as a thousands separator and a footnote star as part of the unit line', () => {
+    const parsed = parseArmyList(`My list (2.000 Points)
+
+Chaos Knights
+Houndpack Lance (3 Detachment Points)
+Reconnaissance
+Strike Force (2.000 Points)
+
+CHARACTERS
+
+War Dog Karnivore (155 Points)*
+• 1x Slaughterclaw
+
+* This Datasheet also has the Battleline keyword
+`)
+    expect(parsed.points).toBe(2000)
+    expect(parsed.units.map((u) => u.name)).toEqual(['War Dog Karnivore'])
+    expect(parsed.units[0].points).toBe(155)
+  })
+})
+
+// Real exports carry every variation the app and its users produce. Each case
+// below came from a list that parsed wrong before.
+describe('parseArmyList - real export variations', () => {
+  it('reads the list under a "+++" WTC header block, not just the block', () => {
+    const parsed = parseArmyList(`+++++++++++++++++++++++++
++ PLAYER NAME: Chong Liu
++ TEAM NAME: Team China
++ FACTION USED: Adeptus Custodes
++FORCE DISPOSITIONS: Reconnaissance
++++++++++++++++++++++++++
+Set my heart to blaze (1,990 Points)
+
+Adeptus Custodes
+Lions of the Emperor and Silent Hunters (3 Detachment Points)
+Reconnaissance
+Strike Force (2,000 Points)
+
+CHARACTERS
+
+Trajann Valoris (135 Points)
+• Warlord
+`)
+    expect(parsed.faction).toBe('Adeptus Custodes')
+    expect(parsed.subfaction).toBeNull()
+    expect(parsed.detachment).toBe('Lions of the Emperor and Silent Hunters')
+    expect(parsed.points).toBe(1990)
+    expect(parsed.units.map((u) => u.name)).toEqual(['Trajann Valoris'])
+  })
+
+  it('keeps the first line as the faction when the list has no title line', () => {
+    const parsed = parseArmyList(`Emperor's Children
+Strike Force (2000 points)
+Carnival of Excess and Frenzied Host (3 Detachment Points)
+Disruption
+
+CHARACTERS
+
+Lord Exultant (105 points)
+`)
+    expect(parsed.faction).toBe("Emperor's Children")
+    expect(parsed.detachment).toBe('Carnival of Excess and Frenzied Host')
+    expect(parsed.points).toBe(2000)
+  })
+
+  it('takes the army total from the battle size when nothing else states one', () => {
+    const parsed = parseArmyList(`Adeptus Mechanicus
+Lords of the Forge and Rad-Zone Corps (3 Detachment Points)
+Priority Assets
+Strike Force (2 000 Points)
+
+CHARACTERS
+
+Tech-Priest Manipulus (60 Points) [me frfr]
+`)
+    expect(parsed.points).toBe(2000)
+    expect(parsed.units.map((u) => u.name)).toEqual(['Tech-Priest Manipulus'])
+  })
+
+  it('reads a unit annotated after its points with a dash', () => {
+    const parsed = parseArmyList(`Drukhari
+Kabalite Cartel and Tools of Torment (3 Detachment Points)
+Disruption
+Strike Force (2000 points)
+
+CHARACTERS
+
+Archon (80 points) - Pablo Escobar himself
+• Warlord
+`)
+    expect(parsed.units.map((u) => u.name)).toEqual(['Archon'])
+    expect(parsed.units[0].points).toBe(80)
+  })
+
+  it('reads a detachment whose points sit on the next line', () => {
+    const parsed = parseArmyList(`Crayon Eating (1,995 Points)
+
+Adeptus Custodes
+Talons of the Emperor
+(3 Detachment Points)
+Take and Hold
+Strike Force (2,000 Points)
+
+CHARACTERS
+
+Trajann Valoris (135 Points)
+`)
+    expect(parsed.faction).toBe('Adeptus Custodes')
+    expect(parsed.detachment).toBe('Talons of the Emperor')
+    expect(parsed.detachmentPoints).toBe(3)
+    expect(parsed.subfaction).toBeNull()
+    expect(parsed.points).toBe(1995)
+  })
+
+  it('reads the army total from a battle size on the first line', () => {
+    const parsed = parseArmyList(`Strike Force (2,000 Points)
+
+Adeptus Custodes
+Lions of the Emperor (3 Detachment Points)
+Take and Hold
+
+CHARACTERS
+
+Trajann Valoris (75 Points)
+`)
+    expect(parsed.points).toBe(2000)
+    expect(parsed.faction).toBe('Adeptus Custodes')
+    expect(parsed.name).toBeNull()
+  })
+
+  it('reads a battle size written without parentheses', () => {
+    const parsed = parseArmyList(`Leagues of Votann
+Needgaard Oathband (2DP) + Hearthband Covenant (1DP)
+Force Dispositions: Purge The Foe
+Strike Force 1995pts
+
+CHARACTERS
+
+Einhyr Champion (85 points)
+`)
+    expect(parsed.points).toBe(1995)
+    expect(parsed.subfaction).toBeNull()
+  })
+
+  it('leaves the export footer out of the units', () => {
+    const parsed = parseArmyList(`My list (2000 points)
+
+Chaos Daemons
+Legion of Excess (3 Detachment Points)
+Strike Force (2000 points)
+
+CHARACTERS
+
+Flesh Hounds (75 points)
+
+Exported with App Version: v2.3.0 (137), Data Version: v912my list (2000 points)
+`)
+    expect(parsed.units.map((u) => u.name)).toEqual(['Flesh Hounds'])
+  })
+
+  it('keeps the detachment count out of the detachment name', () => {
+    const parsed = parseArmyList(`+++++++++++++++++++++++++
++ FACTION KEYWORD: T'au Empire
++ DETACHMENT: Mont'ka (3 Detachment Points)
++ TOTAL ARMY POINTS: 2000 pts
++++++++++++++++++++++++++
+
+CHARACTERS
+
+Ethereal (60 points)
+`)
+    expect(parsed.detachment).toBe("Mont'ka")
+    expect(parsed.detachmentPoints).toBe(3)
+  })
+
+  it('does not read a link in the header as a faction, labelled or bare', () => {
+    const bare = parseArmyList(`My list (2000 points)
+
+Chaos Daemons
+https://www.youtube.com/watch?v=VXcTKe0X1ZA
+Legion of Excess (3 Detachment Points)
+
+CHARACTERS
+
+Bloodletters (75 points)
+`)
+    expect(bare.faction).toBe('Chaos Daemons')
+    expect(bare.subfaction).toBeNull()
+
+    // The link often has a few words in front of it, and the whole line has to
+    // go: keeping the label would put it where the faction belongs.
+    const labelled = parseArmyList(`Zerker POV - https://www.youtube.com/watch?v=5JJu-CTDLoc
+
+Kill My Friends (2,000 Points)
+
+World Eaters
+Berzerker Warband (3 Detachment Points)
+
+CHARACTERS
+
+Khorne Berzerkers (180 points)
+`)
+    expect(labelled.faction).toBe('World Eaters')
+    expect(labelled.subfaction).toBeNull()
+  })
+})
+
+describe('parseArmyList - models and wargear in a flat unit block', () => {
+  it('counts a model type once, not once per weapon it carries', () => {
+    // The flat shape: wargear sits at the same bullet depth as its model, and
+    // sometimes at a shallower one.
+    const parsed = parseArmyList(`My list (2000 points)
+
+Orks
+More Dakka (3 Detachment Points)
+
+BATTLELINE
+
+Boyz (160 points)
+• Attached as: Bodyguard (Battleline)
+• 19x Boy
+• 17x Choppa
+2x Close combat weapon
+2x Rokkit launcha
+17x Shoota
+17x Slugga
+• 1x Boss Nob
+• 1x Power klaw
+1x Slugga
+`)
+    expect(parsed.units[0].models).toBe(20)
+    expect(parsed.units[0].wargear).toEqual([
+      'Choppa',
+      'Close combat weapon',
+      'Rokkit launcha',
+      'Shoota',
+      'Slugga',
+      'Power klaw',
+    ])
+  })
+
+  it('counts a second model type that opens its own group', () => {
+    // Ghazghkull's datasheet brings Makari, listed after Ghazghkull's own
+    // wargear, so both are models.
+    const parsed = parseArmyList(`My list (2000 points)
+
+Orks
+More Dakka (3 Detachment Points)
+
+CHARACTERS
+
+Ghazghkull Thraka (235 points)
+• 1x Ghazghkull Thraka
+• Warlord
+• 1x Gork's Klaw
+1x Mork's Roar
+• 1x Makari
+• 1x Makari's stabba
+`)
+    expect(parsed.units[0].models).toBe(2)
+    expect(parsed.units[0].wargear).toEqual(["Gork's Klaw", "Mork's Roar", "Makari's stabba"])
+  })
+
+  it('reads a vehicle as one model however many guns it lists', () => {
+    const parsed = parseArmyList(`My list (2000 points)
+
+Space Marines
+Gladius Task Force (3 Detachment Points)
+
+OTHER DATASHEETS
+
+Land Raider Redeemer (240 points)
+• 1x Armoured tracks
+• 1x Flamestorm cannon
+• 1x Twin assault cannon
+• 1x Multi-melta
+`)
+    expect(parsed.units[0].models).toBe(1)
+    expect(parsed.units[0].wargear).toEqual([
+      'Armoured tracks',
+      'Flamestorm cannon',
+      'Twin assault cannon',
+      'Multi-melta',
+    ])
   })
 })

@@ -30,8 +30,10 @@ export interface ParsedArmyList {
   faction: string | null
   subfaction: string | null
   detachment: string | null
-  // Detachment points the list spends. Only the app title export states it.
+  // Detachment points the list spends, when the export states it.
   detachmentPoints: number | null
+  // The 11th edition force disposition, when the export names one.
+  disposition: string | null
   // Total army points. From the header when present, else the sum of units.
   points: number | null
   units: ParsedUnit[]

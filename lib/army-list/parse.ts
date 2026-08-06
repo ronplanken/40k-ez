@@ -12,7 +12,8 @@ import { CATEGORY_ORDER } from './types'
 //                    and their weapons.
 //   WTC/+++ format - a "+ FACTION KEYWORD:" header block, then CHARACTER /
 //                    BATTLELINE / OTHER DATASHEETS sections with "<name>
-//                    (<pts> pts)" units.
+//                    (<pts> pts)" units. The block is often pasted on top of a
+//                    plain title-format export, so both are read.
 //
 // Name, points, model count, wargear and a display category are extracted. The
 // category buckets mirror what the app shows; attached units are folded into
@@ -41,15 +42,77 @@ const SECTION_HEADERS: Record<string, SectionCategory> = {
   'ATTACHED UNIT': 'attached',
 }
 
-// "<name> (1,995 points)" / "(390 pts)" / "(2,000 Points)". Points may carry a
-// comma thousands separator. The word after the number is required so plain
-// parentheticals like "(132)" (app version) never match. A trailing ": <wargear>"
-// is captured because compact exports put a unit's weapons after the points on
-// the same line (e.g. "Ghostkeel Battlesuit (160 pts): Ghostkeel fists, ...").
-const UNIT_LINE = /^(.+?)\s*\(([\d,]+)\s*(?:points|pts)\)(?:\s*:\s*(.*))?\s*$/i
+// Thousands separators the app emits: a comma, a dot, or a space in any of the
+// widths it uses (plain, no-break, narrow no-break, thin). Locale decides which,
+// so "1 995", "1,995" and "2.000 Points" all have to read the same. Points are
+// always whole numbers, so a dot here is never a decimal point.
+const THOUSANDS_SEPARATORS = ',.\\u0020\\u00a0\\u202f\\u2009'
 
-// Battle-size and detachment lines look like unit lines but are not units.
-const NON_UNIT_NAMES = /^(strike force|incursion|onslaught|combat patrol)$/i
+// "<name> (1,995 points)" / "(390 pts)" / "(2 000 Points)". The word after the
+// number is required so plain parentheticals like "(132)" (app version) never
+// match. A trailing ": <wargear>" is captured because compact exports put a
+// unit's weapons after the points on the same line (e.g. "Ghostkeel Battlesuit
+// (160 pts): Ghostkeel fists, ..."). A trailing "*" is allowed because 11th
+// edition exports footnote a unit that also carries the Battleline keyword, and
+// a trailing bracketed or dashed note because players annotate a line
+// ("[proxy]", "- Pablo Escobar himself").
+const UNIT_LINE = new RegExp(
+  `^(.+?)\\s*\\(([\\d${THOUSANDS_SEPARATORS}]+)\\s*(?:points|pts)\\)\\*?(?:\\s*\\[[^\\]]*\\])?(?:\\s*:\\s*(.*?))?(?:\\s+[-\\u2013\\u2014]\\s.*)?\\s*$`,
+  'i'
+)
+
+// The five 11th edition force dispositions. An export names one on its own line
+// in the header, between the detachment and the battle size, where a chapter or
+// legion would otherwise be read as the subfaction.
+const DISPOSITION_NAMES =
+  /^(take and hold|purge the foe|reconnaissance|priority assets|disruption)$/i
+
+// "+ Total Army Points: 1,995" in the WTC/+++ header block.
+const TOTAL_POINTS_LINE = new RegExp(`^total army points:\\s*([\\d${THOUSANDS_SEPARATORS}]+)`, 'i')
+
+// The battle sizes the app names. A battle-size line reads exactly like a unit
+// line, so it is matched twice: to keep it out of the units, and to read the
+// army total off it.
+const BATTLE_SIZES = 'strike force|incursion|onslaught|combat patrol'
+
+const NON_UNIT_NAMES = new RegExp(`^(?:${BATTLE_SIZES})$`, 'i')
+
+// "Strike Force (2,000 Points)", and the same line written without its
+// parentheses as "Strike Force 1995pts". Every export states the battle size,
+// so it is the one army total that is always there, even when the list has no
+// title line to carry one.
+const BATTLE_SIZE_LINE = new RegExp(
+  `^(?:${BATTLE_SIZES})\\s*\\(?\\s*([\\d${THOUSANDS_SEPARATORS}]+)\\s*(?:points|pts)\\)?\\s*$`,
+  'i'
+)
+
+// The app signs its exports off with a build stamp, and some exports run the
+// list's own title straight onto the end of it. Left alone the whole thing
+// reads as a unit line, putting a datasheet called "Exported with App Version"
+// in the list.
+const EXPORT_FOOTER = /^exported with app version\b/i
+
+// Whether a line that reads like "<name> (<pts> points)" is in fact chrome the
+// export puts around the list: its battle size, or the build stamp it signs off
+// with. Both look exactly like a unit and neither is one.
+function isExportChrome(name: string): boolean {
+  return NON_UNIT_NAMES.test(name) || EXPORT_FOOTER.test(name)
+}
+
+// "Ironstorm Spearhead (3 Detachment Points)", and the same suffix on a
+// "+ DETACHMENT:" field. The count is a property of the detachment, not part of
+// its name. The name is optional because some exports break the line, leaving a
+// bare "(3 Detachment Points)" of its own.
+const DETACHMENT_POINTS = /^(.*?)\s*\((\d+)\s*detachment points\)/i
+
+// Players drop links to a list builder or a theme song in the header, often
+// with a few words in front ("Theme song: https://..."). A faction or a chapter
+// never carries a link, so the whole line goes, prefix and all.
+const CARRIES_LINK = /(?:https?:\/\/|www\.)\S/i
+
+// Well past the longest real faction or chapter name ("Adeptus Mechanicus" is
+// 18). Anything longer in the header is the list's description.
+const MAX_FACTION_NAME_LENGTH = 60
 
 // "3x Wolf Guard" -> count 3. The bullet marker is stripped before matching.
 const COUNT_PREFIX = /^(\d+)x\s+/i
@@ -82,8 +145,10 @@ function stripBullet(line: string): { indent: number; text: string; bulleted: bo
   return { indent: leading + (bulleted ? 1 : 0), text: rest, bulleted }
 }
 
+const SEPARATOR_RE = new RegExp(`[${THOUSANDS_SEPARATORS}]`, 'g')
+
 function toNumber(raw: string): number | null {
-  const n = Number(raw.replace(/,/g, ''))
+  const n = Number(raw.replace(SEPARATOR_RE, ''))
   return Number.isFinite(n) ? n : null
 }
 
@@ -101,8 +166,12 @@ type LineKind =
 interface BodyLine {
   /** Visual depth, with unbulleted continuations pulled up to their bullet. */
   depth: number
+  /** Whether the line carried a bullet marker of its own. */
+  bulleted: boolean
   text: string
   kind: LineKind
+  /** The leading "Nx" count, for lines that carry one. */
+  count: number | null
   /** The enhancement name or the led unit's name, for those kinds. */
   value?: string
 }
@@ -139,49 +208,81 @@ function readBody(bodyLines: string[]): BodyLine[] {
     if (line.trim().length === 0) continue
     const { indent, text, bulleted } = stripBullet(line)
     if (bulleted) lastBulletIndent = indent
+    const count = text.match(COUNT_PREFIX)
     out.push({
       depth: bulleted ? indent : (lastBulletIndent ?? indent),
+      bulleted,
       text,
+      count: count ? Number(count[1]) : null,
       ...classify(text),
     })
   }
   return out
 }
 
-// The depth at which a unit's models sit. Models are the shallowest "Nx <name>"
-// lines that have deeper children (their weapons). Null when nothing nests: the
-// unit is then a single model (a lone character or a vehicle) and every bullet
-// is a weapon.
-function modelDepth(body: BodyLine[]): number | null {
-  let found = Infinity
-  for (let i = 0; i < body.length; i++) {
-    const hasCount = COUNT_PREFIX.test(body[i].text)
-    const next = body[i + 1]
-    const hasChild = next ? next.depth > body[i].depth : false
-    if (hasCount && hasChild) found = Math.min(found, body[i].depth)
+/**
+ * The lines that name a model, as opposed to a weapon.
+ *
+ * The app writes a unit as a run of groups, one per model type: the model, then
+ * its wargear. Two shapes turn up, and only the first is nested:
+ *
+ *     • 4x Custodian Guard        • 19x Boy
+ *     ◦ 2x Guardian spear         • 17x Choppa
+ *     ◦ 1x Misericordia           2x Rokkit launcha
+ *                                 • 1x Boss Nob
+ *
+ * In both, the model is the counted bullet that *opens* a group at the
+ * outermost bullet depth, and everything until the next group is its wargear.
+ * So a bullet at that depth is a model only when the line before it was not,
+ * which is what separates "19x Boy" from the "17x Choppa" right under it.
+ *
+ * Reading depth alone does not work: the flat shape puts wargear at the same
+ * depth as its model and sometimes at a shallower one, so the outermost line is
+ * not reliably the model.
+ *
+ * A single group with nothing nested under it names no model at all: it is one
+ * model listing its weapons ("• 1x Armoured tracks • 1x Flamestorm cannon"), so
+ * every line in it is wargear and the unit falls back to one model.
+ *
+ * The format does not mark models, so one case stays out of reach: a model
+ * carrying no wargear, listed straight before the next model, reads exactly
+ * like wargear and is missed. That undercounts a few units rather than
+ * multiplying every squad by its weapon list.
+ */
+function findModelLines(body: BodyLine[]): Set<BodyLine> {
+  const counted = body.filter((l) => l.kind === 'content' && l.count !== null)
+  const bulletDepths = counted.filter((l) => l.bulleted).map((l) => l.depth)
+  // Nothing bulleted at all: a lone character listing only its weapons.
+  if (bulletDepths.length === 0) return new Set()
+  const modelDepth = Math.min(...bulletDepths)
+
+  const openers: BodyLine[] = []
+  let previousOpened = false
+  for (const line of counted) {
+    const atModelDepth = line.bulleted && line.depth === modelDepth
+    if (atModelDepth && !previousOpened) openers.push(line)
+    previousOpened = atModelDepth
   }
-  return found === Infinity ? null : found
+
+  const nested = body.some((l) => l.kind === 'content' && l.depth > modelDepth)
+  return new Set(openers.length > 1 || nested ? openers : [])
 }
 
-function countModels(body: BodyLine[], depth: number | null): number | null {
-  if (depth === null) {
-    // No nesting: a single-model unit as long as it has any content at all.
-    return body.length > 0 ? 1 : null
-  }
+function countModels(body: BodyLine[], modelLines: Set<BodyLine>): number | null {
+  // No model line found: a single-model unit as long as it has any content.
+  if (modelLines.size === 0) return body.length > 0 ? 1 : null
   let total = 0
-  for (const line of body) {
-    const m = line.text.match(COUNT_PREFIX)
-    if (m && line.depth === depth) total += Number(m[1])
-  }
+  for (const line of modelLines) total += line.count ?? 0
   return total > 0 ? total : null
 }
 
-// Weapons and wargear: the content lines below the model lines, plus whatever
-// trailed the points on the unit line. Counts are stripped and entries deduped,
-// so a squad reads "Bolt pistol, Bolt rifle" instead of repeating per model.
+// Weapons and wargear: the content lines that are not model lines, plus
+// whatever trailed the points on the unit line. Counts are stripped and entries
+// deduped, so a squad reads "Bolt pistol, Bolt rifle" instead of repeating per
+// model.
 function collectWargear(
   body: BodyLine[],
-  depth: number | null,
+  modelLines: Set<BodyLine>,
   sameLine: string | null
 ): string[] {
   const seen = new Set<string>()
@@ -201,7 +302,7 @@ function collectWargear(
   if (sameLine) add(sameLine)
   for (const line of body) {
     if (line.kind !== 'content') continue
-    if (depth !== null && line.depth <= depth) continue
+    if (modelLines.has(line)) continue
     add(line.text)
   }
   return items
@@ -210,8 +311,7 @@ function collectWargear(
 // The bucket for a unit inside an ATTACHED UNITS section, read from its
 // "Attached as:" line. Leaders are characters; bodyguards annotated Battleline
 // go to battleline, everything else to other.
-function attachedCategory(body: BodyLine[]): ArmyListCategory {
-  const attachedAs = body.find((l) => l.kind === 'attachedAs')?.text
+function attachedCategory(attachedAs: string | null): ArmyListCategory {
   if (!attachedAs) return 'other'
   if (/leader|character/i.test(attachedAs)) return 'characters'
   if (/battleline/i.test(attachedAs)) return 'battleline'
@@ -225,11 +325,17 @@ interface HeaderInfo {
   subfaction: string | null
   detachment: string | null
   detachmentPoints: number | null
+  disposition: string | null
   points: number | null
 }
 
-// Reads the preamble that precedes the first section header. Handles both the
-// title format and the "+ FACTION KEYWORD:" block.
+function equalsIgnoringCase(a: string, b: string): boolean {
+  return a.localeCompare(b, undefined, { sensitivity: 'accent' }) === 0
+}
+
+// Reads the preamble that precedes the first section header. A list may carry
+// a "+ FIELD:" block, a title-format header, or both stacked, so this reads
+// whichever parts are present rather than choosing one shape.
 function parseHeader(preamble: string[]): HeaderInfo {
   const info: HeaderInfo = {
     name: null,
@@ -237,47 +343,84 @@ function parseHeader(preamble: string[]): HeaderInfo {
     subfaction: null,
     detachment: null,
     detachmentPoints: null,
+    disposition: null,
     points: null,
   }
 
-  const plusBlock = preamble.some((l) => l.trim().startsWith('+'))
-  if (plusBlock) {
-    for (const raw of preamble) {
-      const line = raw.replace(/^\s*\+\s*/, '').trim()
-      const faction = line.match(/^faction keyword:\s*(.+)$/i)
-      if (faction) info.faction = faction[1].trim()
-      const det = line.match(/^detachment:\s*(.+)$/i)
-      if (det) info.detachment = det[1].trim()
-      const pts = line.match(/^total army points:\s*([\d,]+)/i)
-      if (pts) info.points = toNumber(pts[1])
+  // A "+ FIELD:" block states some of the header outright. It is not always the
+  // whole header though: WTC entries routinely paste the block on top of an
+  // ordinary title-format export, so read the block, then carry on reading
+  // whatever is left rather than returning on the block alone.
+  for (const raw of preamble.filter((l) => l.trim().startsWith('+'))) {
+    const line = raw.replace(/^\s*\+\s*/, '').trim()
+    const faction = line.match(/^faction(?: keyword| used)?:\s*(.+)$/i)
+    if (faction) info.faction ??= faction[1].trim()
+    const det = line.match(/^detachment:\s*(.+)$/i)
+    if (det && !info.detachment) {
+      const value = det[1].trim()
+      const withPoints = value.match(DETACHMENT_POINTS)
+      info.detachment = withPoints ? withPoints[1].trim() : value
+      if (withPoints) info.detachmentPoints = toNumber(withPoints[2])
     }
-    return info
+    const disposition = line.match(/^force dispositions?:\s*(.+)$/i)
+    if (disposition) info.disposition ??= disposition[1].trim()
+    const pts = line.match(TOTAL_POINTS_LINE)
+    if (pts) info.points ??= toNumber(pts[1])
   }
 
-  const lines = preamble.map((l) => l.trim()).filter((l) => l.length > 0)
+  const lines = preamble.map((l) => l.trim()).filter((l) => l.length > 0 && !l.startsWith('+'))
   if (lines.length === 0) return info
 
-  // Title line: "<name> (<pts> points)".
-  const titleMatch = lines[0].match(UNIT_LINE)
-  if (titleMatch) {
-    info.name = titleMatch[1].trim()
-    info.points = toNumber(titleMatch[2])
+  // Title line: "<name> (<pts> points)". Not every export has one, and when it
+  // is missing the first line is already the faction, so only skip it when it
+  // really was a title.
+  const firstLine = lines[0].match(UNIT_LINE)
+  const title = firstLine && !NON_UNIT_NAMES.test(firstLine[1].trim()) ? firstLine : null
+  if (title) {
+    info.name = title[1].trim()
+    info.points ??= toNumber(title[2])
   }
 
-  for (const line of lines.slice(1)) {
-    const det = line.match(/^(.+?)\s*\((\d+)\s*detachment points\)/i)
+  // Skip the first line only when it really was a title. A list that opens on
+  // its battle size still has to read that line, or the army total is lost.
+  for (const line of title ? lines.slice(1) : lines) {
+    const det = line.match(DETACHMENT_POINTS)
     if (det && !info.detachment) {
-      info.detachment = det[1].trim()
-      info.detachmentPoints = toNumber(det[2])
-      continue
+      // Some exports break the line, leaving a bare "(3 Detachment Points)".
+      // The detachment is then the plain line just read, which up to here has
+      // been taken for the subfaction.
+      const named = det[1].trim()
+      const detachment = named || info.subfaction
+      if (detachment) {
+        info.detachment = detachment
+        info.detachmentPoints = toNumber(det[2])
+        if (!named) info.subfaction = null
+        continue
+      }
     }
     if (/^force disposition/i.test(line)) continue
+    if (DISPOSITION_NAMES.test(line)) {
+      info.disposition ??= line
+      continue
+    }
+    const battleSize = line.match(BATTLE_SIZE_LINE)
+    if (battleSize) {
+      info.points ??= toNumber(battleSize[1])
+      continue
+    }
     // Skip any parenthetical line (battle size, mission notes) — factions and
     // chapters never carry parentheses.
     if (line.includes('(')) continue
-    // First two plain lines are faction then subfaction (chapter/legion).
+    // Skip the optional free-text description the app puts under the title. A
+    // faction or chapter name is short and is not a sentence, so a long line or
+    // one carrying sentence punctuation is prose, not a faction.
+    if (line.length > MAX_FACTION_NAME_LENGTH || /\.(\s|$)/.test(line)) continue
+    if (CARRIES_LINK.test(line)) continue
+    // First two plain lines are faction then subfaction (chapter/legion). A
+    // "+ FACTION:" header names the same faction the list then repeats, so a
+    // line equal to the faction is that repeat, not a chapter.
     if (!info.faction) info.faction = line
-    else if (!info.subfaction) info.subfaction = line
+    else if (!info.subfaction && !equalsIgnoringCase(line, info.faction)) info.subfaction = line
   }
 
   return info
@@ -399,20 +542,25 @@ export function parseArmyList(input: string): ParsedArmyList {
   const flush = () => {
     if (!pending) return
     const body = readBody(pending.body)
-    const depth = modelDepth(body)
+    const modelLines = findModelLines(body)
+    const attached = currentSection === 'attached'
+    const attachedAs = body.find((l) => l.kind === 'attachedAs')?.text ?? null
     const category: ArmyListCategory =
       currentSection === 'attached'
-        ? attachedCategory(body)
+        ? attachedCategory(attachedAs)
         : (currentSection ?? (pending.charId ? 'characters' : 'other'))
-    const attached = currentSection === 'attached'
-    if (attached && category === 'characters') attachedBlock++
+    // A leader opens a block, so a character attached as support joins the
+    // leader's block instead of starting one of its own. Without the
+    // annotation any character opens one, as it always did.
+    const opensBlock = attachedAs ? /leader/i.test(attachedAs) : category === 'characters'
+    if (attached && opensBlock) attachedBlock++
     units.push({
       name: pending.name,
       points: pending.points,
-      models: pending.count ?? countModels(body, depth),
+      models: pending.count ?? countModels(body, modelLines),
       category,
       enhancement: body.find((l) => l.kind === 'enhancement')?.value ?? null,
-      wargear: collectWargear(body, depth, pending.sameLineWargear),
+      wargear: collectWargear(body, modelLines, pending.sameLineWargear),
       leaders: [],
       block: attached ? attachedBlock : null,
       leads: body.find((l) => l.kind === 'leading')?.value ?? null,
@@ -448,7 +596,7 @@ export function parseArmyList(input: string): ParsedArmyList {
     const unitMatch = raw.match(UNIT_LINE)
     // A unit line starts at the left margin and is not bulleted (bulleted
     // "(x pts)" lines are enhancements/wargear inside a unit).
-    if (unitMatch && !bulleted && !NON_UNIT_NAMES.test(unitMatch[1].trim())) {
+    if (unitMatch && !bulleted && !isExportChrome(unitMatch[1].trim())) {
       flush()
       let name = unitMatch[1].trim()
       // Peel a "CharN:" roster slot, then a leading "Nx" model count, off the
@@ -496,6 +644,7 @@ export function parseArmyList(input: string): ParsedArmyList {
     subfaction: header.subfaction,
     detachment: header.detachment,
     detachmentPoints: header.detachmentPoints,
+    disposition: header.disposition,
     points: header.points ?? (summedPoints > 0 ? summedPoints : null),
     units: display,
   }
