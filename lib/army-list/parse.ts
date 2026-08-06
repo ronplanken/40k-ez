@@ -58,9 +58,10 @@ const THOUSANDS_SEPARATORS = ',.\\u0020\\u00a0\\u202f\\u2009'
 // (160 pts): Ghostkeel fists, ..."). A trailing "*" is allowed because 11th
 // edition exports footnote a unit that also carries the Battleline keyword, and
 // a trailing bracketed or dashed note because players annotate a line
-// ("[proxy]", "- Pablo Escobar himself").
+// ("[proxy]", "- Pablo Escobar himself", "-Los Verdugos"). The space in front
+// of the dash is what keeps a hyphen inside a name out of it.
 const UNIT_LINE = new RegExp(
-  `^(.+?)\\s*\\(([\\d${THOUSANDS_SEPARATORS}]+)\\s*(?:points|pts)\\)\\*?(?:\\s*\\[[^\\]]*\\])?(?:\\s*:\\s*(.*?))?(?:\\s+[-\\u2013\\u2014]\\s.*)?\\s*$`,
+  `^(.+?)\\s*\\(([\\d${THOUSANDS_SEPARATORS}]+)\\s*(?:points|pts)\\)\\*?(?:\\s*\\[[^\\]]*\\])?(?:\\s*:\\s*(.*?))?(?:\\s+[-\\u2013\\u2014].*)?\\s*$`,
   'i'
 )
 

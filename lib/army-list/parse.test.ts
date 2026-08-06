@@ -595,8 +595,13 @@ CHARACTERS
 
 Archon (80 points) - Pablo Escobar himself
 • Warlord
+
+Ravager (110 points) -Product Delivery
+
+Ravager (110 points) - Competition Removal
 `)
-    expect(parsed.units.map((u) => u.name)).toEqual(['Archon'])
+    // The second Ravager's note runs straight on from the dash, with no space.
+    expect(parsed.units.map((u) => u.name)).toEqual(['Archon', 'Ravager', 'Ravager'])
     expect(parsed.units[0].points).toBe(80)
   })
 
