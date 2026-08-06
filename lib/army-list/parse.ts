@@ -131,18 +131,26 @@ const LOADOUT_PREFIX = /^(?:(?:[^:]+:|\d+\s+with|\d+x)\s*)+/i
 
 const BULLET_CHARS = '•◦▪‣·*-'
 
+// The app marks a sub-bullet with "◦" under a "•" or "*" parent. Some exports
+// indent that second level and some do not, so the marker carries the level on
+// its own: a "◦" always sits one step below the bullet above it, indented or
+// not. Without this a flat export reads as one level and a squad's weapons look
+// like more models.
+const SUB_BULLET = '◦'
+
 function stripBullet(line: string): { indent: number; text: string; bulleted: boolean } {
   // Indent is the visual depth: leading whitespace, then an optional bullet
   // marker also counts as depth so a "• foo" sits deeper than the line above it
   // even at the same left margin.
   const leading = line.length - line.trimStart().length
   let rest = line.slice(leading)
-  let bulleted = false
+  let marker = ''
   if (rest.length > 0 && BULLET_CHARS.includes(rest[0])) {
-    bulleted = true
+    marker = rest[0]
     rest = rest.slice(1).trimStart()
   }
-  return { indent: leading + (bulleted ? 1 : 0), text: rest, bulleted }
+  const depth = marker === SUB_BULLET ? 2 : marker ? 1 : 0
+  return { indent: leading + depth, text: rest, bulleted: marker !== '' }
 }
 
 const SEPARATOR_RE = new RegExp(`[${THOUSANDS_SEPARATORS}]`, 'g')
@@ -231,22 +239,20 @@ function readBody(bodyLines: string[]): BodyLine[] {
  *     ◦ 1x Misericordia           2x Rokkit launcha
  *                                 • 1x Boss Nob
  *
- * In both, the model is the counted bullet that *opens* a group at the
- * outermost bullet depth, and everything until the next group is its wargear.
- * So a bullet at that depth is a model only when the line before it was not,
- * which is what separates "19x Boy" from the "17x Choppa" right under it.
+ * When the wargear nests, the models are simply the counted bullets at the
+ * outer depth. When it does not, the model is the counted bullet that *opens* a
+ * group, and everything until the next group is its wargear: a bullet is a
+ * model only when the line before it was not, which is what separates "19x Boy"
+ * from the "17x Choppa" right under it.
  *
- * Reading depth alone does not work: the flat shape puts wargear at the same
- * depth as its model and sometimes at a shallower one, so the outermost line is
- * not reliably the model.
+ * A flat group whose opener is written "1x" is a lone model listing its weapons
+ * ("• 1x Armoured tracks • 1x Flamestorm cannon"), so every line in it is
+ * wargear and the unit falls back to one model. A higher count means a squad
+ * ("• 6x Sanguinary Guard" then its weapons), so the opener is a model.
  *
- * A single group with nothing nested under it names no model at all: it is one
- * model listing its weapons ("• 1x Armoured tracks • 1x Flamestorm cannon"), so
- * every line in it is wargear and the unit falls back to one model.
- *
- * The format does not mark models, so one case stays out of reach: a model
- * carrying no wargear, listed straight before the next model, reads exactly
- * like wargear and is missed. That undercounts a few units rather than
+ * The flat shape does not mark models, so one case stays out of reach there: a
+ * model carrying no wargear, listed straight before the next model, reads
+ * exactly like wargear and is missed. That undercounts a few units rather than
  * multiplying every squad by its weapon list.
  */
 function findModelLines(body: BodyLine[]): Set<BodyLine> {
@@ -255,17 +261,21 @@ function findModelLines(body: BodyLine[]): Set<BodyLine> {
   // Nothing bulleted at all: a lone character listing only its weapons.
   if (bulletDepths.length === 0) return new Set()
   const modelDepth = Math.min(...bulletDepths)
+  const outerBullets = counted.filter((l) => l.bulleted && l.depth === modelDepth)
+
+  // The wargear nests under its model, so every outer bullet is a model.
+  if (body.some((l) => l.kind === 'content' && l.depth > modelDepth)) return new Set(outerBullets)
 
   const openers: BodyLine[] = []
   let previousOpened = false
   for (const line of counted) {
-    const atModelDepth = line.bulleted && line.depth === modelDepth
-    if (atModelDepth && !previousOpened) openers.push(line)
-    previousOpened = atModelDepth
+    const opensGroup = line.bulleted && line.depth === modelDepth
+    if (opensGroup && !previousOpened) openers.push(line)
+    previousOpened = opensGroup
   }
 
-  const nested = body.some((l) => l.kind === 'content' && l.depth > modelDepth)
-  return new Set(openers.length > 1 || nested ? openers : [])
+  const namesModels = openers.length > 1 || (openers[0]?.count ?? 0) > 1
+  return new Set(namesModels ? openers : [])
 }
 
 function countModels(body: BodyLine[], modelLines: Set<BodyLine>): number | null {

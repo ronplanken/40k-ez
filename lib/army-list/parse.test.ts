@@ -761,3 +761,100 @@ Land Raider Redeemer (240 points)
     ])
   })
 })
+
+describe('parseArmyList - sub-bullets that are not indented', () => {
+  // The app marks the wargear level with "◦" but does not always indent it, so
+  // the marker is the only thing separating a model from its weapons.
+  const list = `Itz Da Pirate's Lyf 4 Me (1,995 Points)
+
+Orks
+Equatorial Hordes and Freebooter Krew (3 Detachment Points)
+Take and Hold
+Strike Force (2,000 Points)
+
+ATTACHED UNITS
+
+Attached unit 1
+
+Ghazghkull Thraka (235 Points)
+* Attached as: Leader (Character)
+* 1x Ghazghkull Thraka
+* Warlord
+◦ 1x Gork's Klaw
+◦ 1x Mork's Roar
+* 1x Makari
+◦ 1x Makari's stabba
+
+Boyz (160 Points)
+* Attached as: Bodyguard (Battleline)
+* 19x Boy
+◦ 18x Choppa
+◦ 18x Slugga
+* 1x Boss Nob
+◦ 1x Big choppa
+◦ 1x Slugga
+
+OTHER DATASHEETS
+
+Kommandos (120 Points)
+* 1x Bomb Squig
+* 1x Distraction Grot
+* 9x Kommando
+◦ 4x Choppa
+◦ 4x Slugga
+* 1x Boss Nob
+◦ 1x Power klaw
+`
+
+  it('counts every model bullet, not just the one that opens a group', () => {
+    const parsed = parseArmyList(list)
+    expect(unit(parsed, 'Boyz').models).toBe(20) // 19 + 1
+    // Models listed back to back with no weapons between them still all count.
+    expect(unit(parsed, 'Kommandos').models).toBe(12) // 1 + 1 + 9 + 1
+    expect(unit(parsed, 'Ghazghkull Thraka').models).toBe(2)
+  })
+
+  it('keeps the model lines out of the wargear', () => {
+    const parsed = parseArmyList(list)
+    expect(unit(parsed, 'Boyz').wargear).toEqual(['Choppa', 'Slugga', 'Big choppa'])
+    expect(unit(parsed, 'Ghazghkull Thraka').wargear).toEqual([
+      "Gork's Klaw",
+      "Mork's Roar",
+      "Makari's stabba",
+    ])
+  })
+
+  it('does not read the disposition as the chapter', () => {
+    expect(parseArmyList(list).subfaction).toBeNull()
+    expect(parseArmyList(list).disposition).toBe('Take and Hold')
+  })
+})
+
+describe('parseArmyList - a flat squad of one model type', () => {
+  // No sub-bullets at all: the model and its weapons share a depth, and only
+  // the model's own count says it is a squad rather than a lone model.
+  const squad = `My list (2000 points)
+
+Space Marines
+Blood Angels
+Encarmine Speartip (3 Detachment Points)
+
+OTHER DATASHEETS
+
+Sanguinary Guard (280 points)
+• 6x Sanguinary Guard
+• 4x Angelus boltgun
+6x Encarmine spear
+1x Sanguinary Banner
+`
+
+  it('reads the squad size from the model line', () => {
+    const parsed = parseArmyList(squad)
+    expect(parsed.units[0].models).toBe(6)
+    expect(parsed.units[0].wargear).toEqual([
+      'Angelus boltgun',
+      'Encarmine spear',
+      'Sanguinary Banner',
+    ])
+  })
+})
