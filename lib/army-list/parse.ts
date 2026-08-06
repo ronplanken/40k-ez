@@ -1,6 +1,14 @@
-import type { ParsedArmyList, ArmyListCategory, ParsedUnit } from './types'
-import { CATEGORY_ORDER } from './types'
+import type {
+  ArmyList,
+  ArmyListCategory,
+  ArmyListUnit,
+  AttachedRole,
+  LeaderRef,
+} from './types'
 
+// SHARED FILE, kept byte-identical between the 40k-ez app and the gd streamer
+// app. See the note at the top of `types.ts`.
+//
 // Parser for Warhammer 40,000 app list exports. The app ships several export
 // shapes and users may paste any of them, so the parser is deliberately
 // tolerant. Two families are handled:
@@ -15,10 +23,11 @@ import { CATEGORY_ORDER } from './types'
 //                    (<pts> pts)" units. The block is often pasted on top of a
 //                    plain title-format export, so both are read.
 //
-// Name, points, model count, wargear and a display category are extracted. The
-// category buckets mirror what the app shows; attached units are folded into
-// characters (the leader) and battleline/other (the bodyguard) so the list
-// reads as one clean army.
+// Name, points, model count, warlord flag, wargear and a display category are
+// extracted. The category buckets mirror what the app shows; attached units are
+// folded into characters (the leader) and battleline/other (the bodyguard) so
+// the list reads as one clean army. Units come out in the order the export
+// lists them; grouping them is up to the app.
 
 // The bucket a section header maps to. ATTACHED is special: the units inside
 // carry their own "Attached as:" line that decides their real bucket.
@@ -329,6 +338,25 @@ function attachedCategory(attachedAs: string | null): ArmyListCategory {
   return 'other'
 }
 
+// The role a unit plays in its attached block, from the same "Attached as:"
+// line. Null when the line is missing, so the caller can leave it ungrouped.
+function attachedRole(attachedAs: string | null): AttachedRole | null {
+  if (!attachedAs) return null
+  if (/leader/i.test(attachedAs)) return 'leader'
+  if (/support/i.test(attachedAs)) return 'support'
+  if (/bodyguard/i.test(attachedAs)) return 'bodyguard'
+  return null
+}
+
+// Unit ids are stable within one parse: the name, plus the unit's position to
+// keep two squads of the same name apart.
+function slug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
 interface HeaderInfo {
   name: string | null
   faction: string | null
@@ -337,6 +365,8 @@ interface HeaderInfo {
   detachmentPoints: number | null
   disposition: string | null
   points: number | null
+  /** The "CharN" roster slot named on the WARLORD line, if the header has one. */
+  warlordCharId: string | null
 }
 
 function equalsIgnoringCase(a: string, b: string): boolean {
@@ -355,6 +385,7 @@ function parseHeader(preamble: string[]): HeaderInfo {
     detachmentPoints: null,
     disposition: null,
     points: null,
+    warlordCharId: null,
   }
 
   // A "+ FIELD:" block states some of the header outright. It is not always the
@@ -376,6 +407,8 @@ function parseHeader(preamble: string[]): HeaderInfo {
     if (disposition) info.disposition ??= disposition[1].trim()
     const pts = line.match(TOTAL_POINTS_LINE)
     if (pts) info.points ??= toNumber(pts[1])
+    const wl = line.match(/^warlord:\s*(char\d+)\b/i)
+    if (wl) info.warlordCharId ??= wl[1]
   }
 
   const lines = preamble.map((l) => l.trim()).filter((l) => l.length > 0 && !l.startsWith('+'))
@@ -408,7 +441,13 @@ function parseHeader(preamble: string[]): HeaderInfo {
         continue
       }
     }
-    if (/^force disposition/i.test(line)) continue
+    // Written either as a labelled line ("Force Dispositions: Purge the Foe")
+    // or as the bare name on its own line.
+    const labelled = line.match(/^force dispositions?:\s*(.*)$/i)
+    if (labelled) {
+      if (labelled[1].trim()) info.disposition ??= labelled[1].trim()
+      continue
+    }
     if (DISPOSITION_NAMES.test(line)) {
       info.disposition ??= line
       continue
@@ -453,10 +492,8 @@ function headerBlockEnd(lines: string[]): number {
 // other unit to resolve. The two export families spell it differently: the app
 // puts a leader and its bodyguard together in the attached section, WTC names
 // the led unit on the character's "Leading:" line.
-interface WorkingUnit extends Omit<ParsedUnit, 'leaders'> {
-  /** The characters leading this unit, held by reference until ordering. */
-  leaders: WorkingUnit[]
-  /** Which run of attached units this belongs to. Each leader starts one. */
+interface WorkingUnit extends ArmyListUnit {
+  /** Which run of attached units this belongs to. */
   block: number | null
   /** The unit named on a "Leading:" line, if the export carries one. */
   leads: string | null
@@ -488,10 +525,12 @@ function resolveAttachments(units: WorkingUnit[]): void {
   for (const character of units) {
     if (character.category !== 'characters') continue
 
+    const ref: LeaderRef = { id: character.id, name: character.name }
+
     if (character.leads) {
       const led = findLedUnit(units, character.leads, claimed)
       if (led) {
-        led.leaders.push(character)
+        led.leaders.push(ref)
         claimed.add(led)
       }
       continue
@@ -505,7 +544,7 @@ function resolveAttachments(units: WorkingUnit[]): void {
       // A dedicated transport in the block is not led by the character, it is
       // just bought alongside it.
       if (other.category === 'transports') continue
-      other.leaders.push(character)
+      other.leaders.push(ref)
     }
   }
 }
@@ -522,7 +561,7 @@ interface PendingUnit {
   sameLineWargear: string | null
 }
 
-export function parseArmyList(input: string): ParsedArmyList {
+export function parseArmyList(input: string): ArmyList {
   const lines = input.replace(/\r\n?/g, '\n').split('\n')
 
   // Normalise every line once, so the section-header lookup below and the main
@@ -566,14 +605,25 @@ export function parseArmyList(input: string): ParsedArmyList {
     // annotation any character opens one, as it always did.
     const opensBlock = attachedAs ? /leader/i.test(attachedAs) : category === 'characters'
     if (attached && !labelledBlocks && opensBlock) attachedBlock++
+    // The header names the warlord by roster slot in a compact export, the unit
+    // block flags it with a "Warlord" line in every other shape.
+    const warlord =
+      body.some((l) => l.kind === 'warlord') ||
+      (pending.charId != null &&
+        header.warlordCharId != null &&
+        pending.charId.toLowerCase() === header.warlordCharId.toLowerCase())
+    const role = attached ? attachedRole(attachedAs) : null
     units.push({
+      id: `${slug(pending.name) || 'unit'}-${units.length}`,
       name: pending.name,
       points: pending.points,
       models: pending.count ?? countModels(body, modelLines),
       category,
+      isWarlord: warlord,
       enhancement: body.find((l) => l.kind === 'enhancement')?.value ?? null,
       wargear: collectWargear(body, modelLines, pending.sameLineWargear),
       leaders: [],
+      attachment: role ? { group: attachedBlock, role } : null,
       block: attached ? attachedBlock : null,
       leads: body.find((l) => l.kind === 'leading')?.value ?? null,
     })
@@ -640,18 +690,8 @@ export function parseArmyList(input: string): ParsedArmyList {
 
   const summedPoints = units.reduce((sum, u) => sum + (u.points ?? 0), 0)
 
-  // Emit in display order. Attached leaders and their bodyguards are interleaved
-  // in the export, so without this the sections would come out shuffled.
-  const ordered = CATEGORY_ORDER.flatMap((category) =>
-    units.filter((u) => u.category === category)
-  )
-  // Leaders are held by reference while parsing. Now that the order is final,
-  // resolve them to a position so nothing downstream needs object identity.
-  const position = new Map(ordered.map((u, i) => [u, i]))
-  const display: ParsedUnit[] = ordered.map(({ block, leads, ...unit }) => ({
-    ...unit,
-    leaders: unit.leaders.map((l) => ({ index: position.get(l as WorkingUnit)!, name: l.name })),
-  }))
+  // Drop the fields that only exist while reading, keeping the export's order.
+  const display: ArmyListUnit[] = units.map(({ block, leads, ...unit }) => unit)
 
   return {
     name: header.name,

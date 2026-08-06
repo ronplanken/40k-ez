@@ -4,11 +4,13 @@ export interface ArmyList {
   units: Unit[];
   totalPoints?: number;
   faction?: string;
+  disposition?: string; // Force disposition, e.g. "Take and Hold"
   detachment?: string;
   detachmentPoints?: number; // Detachment points the list spends
 }
 
 export interface Unit {
+  id: string; // Stable within one parse, and how leaders point at a character
   name: string;
   category: ArmyListCategory; // Characters, battleline, transports or other
   modelCount?: number; // Number of models in this unit

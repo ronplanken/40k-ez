@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { parseArmyList } from './parse'
-import type { ParsedArmyList, ArmyListCategory } from './types'
-import { CATEGORY_ORDER } from './types'
+import type { ArmyList, ArmyListCategory } from './types'
 import {
   BARK_AT_THE_MOON,
   CHAOS_DAEMONS_WTC,
@@ -14,7 +13,7 @@ import {
 } from './parse.fixtures'
 
 // Look up the first unit whose name matches, for per-unit assertions.
-function unit(list: ParsedArmyList, name: string) {
+function unit(list: ArmyList, name: string) {
   const found = list.units.find((u) => u.name === name)
   if (!found) throw new Error(`unit not found: ${name}`)
   return found
@@ -24,7 +23,7 @@ function leaderNames(unit: { leaders: Array<{ name: string }> }): string[] {
   return unit.leaders.map((l) => l.name)
 }
 
-function countByCategory(list: ParsedArmyList, category: ArmyListCategory): number {
+function countByCategory(list: ArmyList, category: ArmyListCategory): number {
   return list.units.filter((u) => u.category === category).length
 }
 
@@ -70,12 +69,17 @@ describe('parseArmyList - title format (Bark at the Moon)', () => {
     expect(unit(list, 'Wolf Guard Battle Leader').enhancement).toBe('Wolf-touched')
   })
 
-  it('emits units in display order, not source order', () => {
-    // The export interleaves attached leaders and bodyguards; the parser groups
-    // them so the output reads characters, battleline, transports, other.
-    const seen = list.units.map((u) => u.category)
-    const order = CATEGORY_ORDER.filter((c) => seen.includes(c))
-    expect([...new Set(seen)]).toEqual(order)
+  it('keeps the order the export lists the units in', () => {
+    // Grouping them by category is left to the app that shows the list.
+    expect(list.units[0].name).toBe('Logan Grimnar')
+    expect(list.units[1].name).toBe('Wolf Guard Terminators')
+  })
+
+  it('flags the warlord and gives every unit a unique id', () => {
+    expect(unit(list, 'Logan Grimnar').isWarlord).toBe(true)
+    expect(unit(list, 'Wolf Guard Terminators').isWarlord).toBe(false)
+    const ids = list.units.map((u) => u.id)
+    expect(new Set(ids).size).toBe(ids.length)
   })
 
   it('reads wargear from the deepest bullet level', () => {
@@ -122,6 +126,7 @@ describe('parseArmyList - WTC "+++" format (Chaos Daemons)', () => {
 
   it('treats flat weapon-only characters as a single model', () => {
     expect(unit(list, "Be'lakor").models).toBe(1)
+    expect(unit(list, "Be'lakor").isWarlord).toBe(true)
     expect(unit(list, 'Chaos Lord in Terminator Armour').models).toBe(1)
   })
 
@@ -195,6 +200,7 @@ describe('parseArmyList - multi-model character (Grimaldus)', () => {
   it('sums a character that brings a bodyguard of its own', () => {
     // Grimaldus (1) + 3 Cenobyte Servitors.
     expect(unit(list, 'Chaplain Grimaldus').models).toBe(4)
+    expect(unit(list, 'Chaplain Grimaldus').isWarlord).toBe(true)
   })
 
   it('reads the comma thousands total from the title', () => {
@@ -264,6 +270,12 @@ describe('parseArmyList - compact WTC export with no section headers (Tau)', () 
     expect(unit(list, 'Commander in Enforcer Battlesuit').enhancement).toBe(
       "Exemplar of the Mont'ka"
     )
+  })
+
+  it('flags the warlord the header names by roster slot', () => {
+    // The header says "WARLORD: Char4", and no unit block carries a Warlord line.
+    expect(unit(list, 'Commander in Enforcer Battlesuit').isWarlord).toBe(true)
+    expect(list.units.filter((u) => u.isWarlord)).toHaveLength(1)
   })
 })
 
@@ -405,6 +417,10 @@ describe('parseArmyList - space thousands separator with allied units (Red gear)
     ])
   })
 
+  it('reads a labelled "Force Dispositions:" line', () => {
+    expect(list.disposition).toBe('Disruption, Priority Assets, Purge the Foe')
+  })
+
   it('reads the faction and detachment past the spaced-points lines', () => {
     expect(list.faction).toBe('World Eaters')
     expect(list.detachment).toBe('Brazen Engines, Butchers of Khorne, and Vessels of Wrath')
@@ -473,6 +489,21 @@ Vulkan He'stan (85 points)
   it('leaves units outside an attached block unattached', () => {
     const parsed = parseArmyList(list)
     expect(leaderNames(unit(parsed, "Vulkan He'stan"))).toEqual([])
+    expect(unit(parsed, "Vulkan He'stan").attachment).toBeNull()
+  })
+
+  it('links each unit to the attached block it was listed under', () => {
+    const parsed = parseArmyList(list)
+    const attached = parsed.units
+      .filter((u) => u.attachment)
+      .map((u) => `${u.attachment!.group}:${u.attachment!.role}:${u.name}`)
+    expect(attached).toEqual([
+      '1:leader:Librarian',
+      '1:support:Painboy',
+      '1:bodyguard:Infernus Squad',
+      '2:leader:Captain',
+      '2:bodyguard:Vanguard Veterans',
+    ])
   })
 
   it('reads a dot as a thousands separator and a footnote star as part of the unit line', () => {
