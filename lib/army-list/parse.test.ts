@@ -858,3 +858,45 @@ Sanguinary Guard (280 points)
     ])
   })
 })
+
+describe('parseArmyList - an attached block with a support character', () => {
+  // The labels are what the app grouped by: unit 1 is the leader, its support
+  // character and their bodyguard, and unit 2 starts a new block even though it
+  // opens on a support character.
+  const list = `My list (2000 points)
+
+Orks
+Equatorial Hordes (3 Detachment Points)
+
+ATTACHED UNITS
+
+Attached unit 1
+
+Ghazghkull Thraka (235 Points)
+* Attached as: Leader (Character)
+
+Painboy (90 Points)
+* Attached as: Support (Character)
+
+Boyz (160 Points)
+* Attached as: Bodyguard (Battleline)
+
+Attached unit 2
+
+Bannernob (70 Points)
+* Attached as: Support (Character)
+
+Flash Gitz (150 Points)
+* Attached as: Bodyguard ()
+`
+
+  it('names both characters of the block on the unit they joined', () => {
+    const parsed = parseArmyList(list)
+    expect(leaderNames(unit(parsed, 'Boyz'))).toEqual(['Ghazghkull Thraka', 'Painboy'])
+  })
+
+  it('keeps the next label a new block, whatever character opens it', () => {
+    const parsed = parseArmyList(list)
+    expect(leaderNames(unit(parsed, 'Flash Gitz'))).toEqual(['Bannernob'])
+  })
+})

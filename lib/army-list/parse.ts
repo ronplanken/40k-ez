@@ -540,10 +540,12 @@ export function parseArmyList(input: string): ParsedArmyList {
   // Null until a section header is seen, so lists with no headers fall back to
   // per-unit inference (a "CharN" slot is a character, everything else "other").
   let currentSection: SectionCategory | null = null
-  // Numbers the runs of attached units. A new one starts at every leader, so
-  // the pairing does not depend on the "Attached unit N" labels, which not
-  // every app version writes.
+  // Numbers the runs of attached units. The export usually labels them
+  // ("Attached unit 2") and those labels are what the app grouped by, so they
+  // win. Not every app version writes them; without them a new run starts at
+  // every leader instead.
   let attachedBlock = 0
+  let labelledBlocks = false
 
   // Accumulate the lines that belong to the unit currently being read so its
   // model count and flags can be computed when the next unit or section starts.
@@ -563,7 +565,7 @@ export function parseArmyList(input: string): ParsedArmyList {
     // leader's block instead of starting one of its own. Without the
     // annotation any character opens one, as it always did.
     const opensBlock = attachedAs ? /leader/i.test(attachedAs) : category === 'characters'
-    if (attached && opensBlock) attachedBlock++
+    if (attached && !labelledBlocks && opensBlock) attachedBlock++
     units.push({
       name: pending.name,
       points: pending.points,
@@ -587,10 +589,13 @@ export function parseArmyList(input: string): ParsedArmyList {
       continue
     }
 
-    // "Attached unit 1" style sub-labels inside the attached section are not
-    // units; skip them so they never start a block.
+    // "Attached unit 1" style sub-labels are not units. They mark where one run
+    // of attached units ends and the next begins, which is exactly the grouping
+    // to keep.
     if (/^ATTACHED UNIT \d+$/.test(keys[i])) {
       flush()
+      labelledBlocks = true
+      attachedBlock++
       continue
     }
 

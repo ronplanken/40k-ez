@@ -112,6 +112,29 @@ function attachmentsByLeader(units: Unit[]): Map<number, Unit[]> {
 }
 
 /**
+ * The characters that share a block with another character, such as a Painboy
+ * attached as support alongside a Warboss. The block is one group, so the first
+ * character writes it out and the rest are folded into that same entry instead
+ * of repeating the unit once per character.
+ */
+function coLeaders(units: Unit[]): { folded: Set<number>; byFirst: Map<number, number[]> } {
+  const folded = new Set<number>();
+  const byFirst = new Map<number, number[]>();
+
+  for (const unit of units) {
+    const leaders = unit.leaders ?? [];
+    for (const leader of leaders.slice(1)) {
+      if (folded.has(leader.index)) continue;
+      folded.add(leader.index);
+      const rest = byFirst.get(leaders[0].index);
+      if (rest) rest.push(leader.index);
+      else byFirst.set(leaders[0].index, [leader.index]);
+    }
+  }
+  return { folded, byFirst };
+}
+
+/**
  * The enhancement, as a suffix: " (Wolf-touched)". The condensed form shows it
  * on characters only, where it reads as part of the name.
  */
@@ -136,18 +159,24 @@ interface UnitGroup {
 function groupUnits(units: Unit[], options: DisplayOptions): UnitGroup[] {
   const grouped = new Map<string, UnitGroup>();
   const attachedTo = attachmentsByLeader(units);
+  const { folded, byFirst } = coLeaders(units);
 
   units.forEach((unit, index) => {
-    // An attached unit is written out with the character that leads it, so it
-    // is not listed again on its own.
-    if (options.showAttachedLeaders && unit.leaders?.length) return;
+    // An attached unit is written out with the character that leads it, and a
+    // character sharing that block is written out with the first character of
+    // it, so neither is listed again on its own.
+    if (options.showAttachedLeaders && (unit.leaders?.length || folded.has(index))) return;
 
     const cleanName = unit.name.trim();
+    // The rest of this character's block: " + Painboy".
+    const shared = (byFirst.get(index) ?? [])
+      .map((i) => ` + ${units[i].name.trim()}${enhancementSuffix(units[i], options)}`)
+      .join("");
     // Two units merge only when they would render identically, so the key is
     // the name plus whatever decoration the options put on it. Keying on the
     // output means a new option cannot forget to split its groups.
     const decoration =
-      enhancementSuffix(unit, options) + attachedSuffix(attachedTo.get(index), options);
+      enhancementSuffix(unit, options) + shared + attachedSuffix(attachedTo.get(index), options);
     const groupKey = cleanName + decoration;
 
     if (!grouped.has(groupKey)) {

@@ -287,3 +287,42 @@ describe("formatArmyList - model counts in the expanded form", () => {
     expect(out).toBe("Chaplain Grimaldus\n\n5x Intercessor Squad\nGladiator Lancer");
   });
 });
+
+describe("formatArmyList - a block led by more than one character", () => {
+  const list = `My list (2000 points)
+
+Orks
+Equatorial Hordes (3 Detachment Points)
+
+ATTACHED UNITS
+
+Attached unit 1
+
+Ghazghkull Thraka (235 Points)
+* Attached as: Leader (Character)
+
+Painboy (90 Points)
+* Attached as: Support (Character)
+* Enhancements: Bionik Workshop
+
+Boyz (160 Points)
+* Attached as: Bodyguard (Battleline)
+* 19x Boy
+◦ 18x Choppa
+* 1x Boss Nob
+◦ 1x Power klaw
+`
+
+  it("writes the block once, not once per character", () => {
+    const output = formatArmyList(parseArmyList(list), {
+      ...defaultDisplayOptions,
+      showAttachedLeaders: true,
+    })
+    expect(output).toContain(
+      "Ghazghkull Thraka + Painboy (Bionik Workshop) + 1x20 Boyz"
+    )
+    // The squad and the support character are not listed again on their own.
+    expect(output.match(/Boyz/g)).toHaveLength(1)
+    expect(output.match(/Painboy/g)).toHaveLength(1)
+  })
+})
