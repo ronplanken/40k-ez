@@ -831,9 +831,9 @@ Land Raider Redeemer (240 points)
   })
 
   it('does not mistake a lone model carrying two of a weapon for a second model', () => {
-    // A one-off count (this tank's "2x Flamestorm cannon") never recurs
-    // elsewhere in the block, unlike a squad's model count, which comes back
-    // as its wargear's count too. Real export: LOGAN_STEEL_CHAIR's Land Raider.
+    // The squad's rank and file is named after the unit and a weapon is not,
+    // so a bigger count on its own never starts a second model.
+    // Real export: LOGAN_STEEL_CHAIR's Land Raider.
     const parsed = parseArmyList(`My list (2000 points)
 
 Space Marines
@@ -854,6 +854,121 @@ Land Raider Redeemer (240 points)
       'Hunter-killer missile',
       'Multi-melta',
     ])
+  })
+
+  it('keeps a vehicle at one model when its weapon counts run up and down', () => {
+    // Every line is bulleted and the counts alternate, which reads exactly like
+    // a squad listing a second model. None of them names the unit, so none is.
+    const parsed = parseArmyList(`My list (2000 points)
+
+Astra Militarum
+Hammer of the Emperor (3 Detachment Points)
+
+OTHER DATASHEETS
+
+Stormlord (395 Points)
+• 1x Armoured tracks
+• 2x Heavy stubber
+• 2x Lascannon
+• 1x Twin heavy bolter
+• 2x Twin heavy bolter
+• 1x Vulcan mega-bolter
+`)
+    expect(parsed.units[0].models).toBe(1)
+  })
+
+  it('reads the rank and file the unit is named after, however it is shortened', () => {
+    const parsed = parseArmyList(`My list (2000 points)
+
+Tyranids
+Invasion Fleet (3 Detachment Points)
+
+OTHER DATASHEETS
+
+Hyperadapted Raveners (165 Points)
+• 1x Ravener Prime
+• 1x Prime claws and talons
+• 4x Raveners
+• 4x Ravener heavy claws and talons
+`)
+    expect(parsed.units[0].models).toBe(5)
+  })
+
+  it('keeps a weapon that borrows the front of the unit name out of the count', () => {
+    // "Burna Boyz" lists its models as "Burna Boy" and their flamers as
+    // "Burna", so only the full name reads as rank and file.
+    const parsed = parseArmyList(`My list (2000 points)
+
+Orks
+More Dakka (3 Detachment Points)
+
+OTHER DATASHEETS
+
+Burna Boyz (60 points)
+• 1x Spanner
+• 1x Rokkit Launcha
+1x Close combat weapon
+• 4x Burna Boy
+• 4x Burna
+4x Cuttin flames
+`)
+    expect(parsed.units[0].models).toBe(5)
+  })
+
+  it('keeps a lone weapon named after its unit out of the count', () => {
+    // A Skull Cannon's gun is a skull cannon. Rank and file comes several
+    // strong, so a single one of them mid-block is the weapon, not a model.
+    const parsed = parseArmyList(`My list (2000 points)
+
+Chaos Daemons
+Blood Legion (3 Detachment Points)
+
+OTHER DATASHEETS
+
+Skull Cannon (90 Points)
+• 1x Attendants hellblades
+• 1x Biting maw
+• 1x Skull cannon
+`)
+    expect(parsed.units[0].models).toBe(1)
+  })
+
+  it('ignores the loadout an "X with Y" unit name carries', () => {
+    const parsed = parseArmyList(`My list (2000 points)
+
+Orks
+More Dakka (3 Detachment Points)
+
+CHARACTERS
+
+Big Mek with Shokk Attack Gun (85 points)
+• 1x Close combat weapon
+• 2x Shokk Attack Gun
+`)
+    expect(parsed.units[0].models).toBe(1)
+  })
+
+  it('reads unit-wide kit listed in front of the rank and file as wargear', () => {
+    // The Bomb Squig opens the block and lists no wargear of its own, so it is
+    // kit the mob shares rather than a model: 6 Boyz + 2 Nobs.
+    const parsed = parseArmyList(`My list (2000 points)
+
+Orks
+More Dakka (3 Detachment Points)
+
+OTHER DATASHEETS
+
+Squighog Boyz (270 points)
+• Attached as: Bodyguard
+• 2x Bomb Squig
+• 6x Squighog Boy
+• 6x Saddlegit weapons
+6x Squig jaws
+• 2x Nob on Smasha Squig
+• 2x Big choppa
+2x Slugga
+`)
+    expect(parsed.units[0].models).toBe(8)
   })
 })
 
