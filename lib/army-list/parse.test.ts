@@ -169,6 +169,11 @@ describe('parseArmyList - flattened bullets and comma thousands (Logan)', () => 
     expect(terminators.map((u) => u.models)).toEqual([5, 10])
   })
 
+  it('keeps a solo vehicle at 1 model even when a weapon count is written "2x"', () => {
+    // "2x Flamestorm cannon" is a one-off in this block, not a squad count.
+    expect(unit(list, 'Land Raider Redeemer').models).toBe(1)
+  })
+
   it('reads enhancements that carry an "(Upgrade)" suffix', () => {
     const first = list.units.find((u) => u.name === 'Wolf Guard Terminators' && u.enhancement)
     expect(first?.enhancement).toBe('Fierce Example')
@@ -774,6 +779,34 @@ Ghazghkull Thraka (235 points)
     expect(parsed.units[0].wargear).toEqual(["Gork's Klaw", "Mork's Roar", "Makari's stabba"])
   })
 
+  it('counts a squad whose per-model wargear is bulleted with no unbulleted break', () => {
+    // Chaos Daemons export: "Slashing claws" and "Daemonic Icon" are each the
+    // sole, bulleted wargear line for their model, so nothing unbulleted ever
+    // separates Alluress's group from the Daemonette squad's.
+    const parsed = parseArmyList(`My list (2000 points)
+
+Chaos Daemons
+Legion of Excess (3 Detachment Points)
+
+BATTLELINE
+
+Daemonettes (90 points)
+* Attached as: Bodyguard (Battleline)
+• 1x Alluress
+• 1x Slashing claws
+• 9x Daemonette
+• 1x Daemonic Icon
+1x Instrument of Chaos
+9x Slashing claws
+`)
+    expect(parsed.units[0].models).toBe(10)
+    expect(parsed.units[0].wargear).toEqual([
+      'Slashing claws',
+      'Daemonic Icon',
+      'Instrument of Chaos',
+    ])
+  })
+
   it('reads a vehicle as one model however many guns it lists', () => {
     const parsed = parseArmyList(`My list (2000 points)
 
@@ -793,6 +826,32 @@ Land Raider Redeemer (240 points)
       'Armoured tracks',
       'Flamestorm cannon',
       'Twin assault cannon',
+      'Multi-melta',
+    ])
+  })
+
+  it('does not mistake a lone model carrying two of a weapon for a second model', () => {
+    // A one-off count (this tank's "2x Flamestorm cannon") never recurs
+    // elsewhere in the block, unlike a squad's model count, which comes back
+    // as its wargear's count too. Real export: LOGAN_STEEL_CHAIR's Land Raider.
+    const parsed = parseArmyList(`My list (2000 points)
+
+Space Marines
+Gladius Task Force (3 Detachment Points)
+
+OTHER DATASHEETS
+
+Land Raider Redeemer (240 points)
+• 1x Armoured tracks
+• 2x Flamestorm cannon
+• 1x Hunter-killer missile
+• 1x Multi-melta
+`)
+    expect(parsed.units[0].models).toBe(1)
+    expect(parsed.units[0].wargear).toEqual([
+      'Armoured tracks',
+      'Flamestorm cannon',
+      'Hunter-killer missile',
       'Multi-melta',
     ])
   })

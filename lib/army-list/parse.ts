@@ -241,17 +241,24 @@ function readBody(bodyLines: string[]): BodyLine[] {
  * outer depth. When it does not, the model is the counted bullet that *opens* a
  * group, and everything until the next group is its wargear: a bullet is a
  * model only when the line before it was not, which is what separates "19x Boy"
- * from the "17x Choppa" right under it.
+ * from the "17x Choppa" right under it. A model's own wargear can also be
+ * bulleted with nothing unbulleted to close the group off (e.g. "• 1x Alluress
+ * / • 1x Slashing claws / • 9x Daemonette"), so a count higher than the current
+ * group's opens a new group too, *if* that count recurs elsewhere in the unit:
+ * a squad's rank-and-file model count comes back as its wargear's count too
+ * ("9x Daemonette" then, later, "9x Slashing claws"), where a one-off higher
+ * count is just a lone model carrying more than one of something ("2x
+ * Flamestorm cannon" on a solo tank never recurs, so it stays wargear).
  *
  * A flat group whose opener is written "1x" is a lone model listing its weapons
  * ("• 1x Armoured tracks • 1x Flamestorm cannon"), so every line in it is
  * wargear and the unit falls back to one model. A higher count means a squad
  * ("• 6x Sanguinary Guard" then its weapons), so the opener is a model.
  *
- * The flat shape does not mark models, so one case stays out of reach there: a
- * model carrying no wargear, listed straight before the next model, reads
- * exactly like wargear and is missed. That undercounts a few units rather than
- * multiplying every squad by its weapon list.
+ * The flat shape still misses one case: a model carrying no wargear, listed
+ * straight before another model of the same or lower count, reads exactly like
+ * wargear. That undercounts a few units rather than multiplying every squad by
+ * its weapon list.
  */
 function findModelLines(body: BodyLine[]): Set<BodyLine> {
   const counted = body.filter((l) => l.kind === 'content' && l.count !== null)
@@ -264,12 +271,26 @@ function findModelLines(body: BodyLine[]): Set<BodyLine> {
   // The wargear nests under its model, so every outer bullet is a model.
   if (body.some((l) => l.kind === 'content' && l.depth > modelDepth)) return new Set(outerBullets)
 
+  // How many counted lines carry each count, so a mid-run jump can tell a
+  // squad's next model (its count recurs, as its wargear) from a solo model's
+  // own multi-count wargear (a one-off that never recurs).
+  const countFrequency = new Map<number, number>()
+  for (const line of counted)
+    countFrequency.set(line.count ?? 0, (countFrequency.get(line.count ?? 0) ?? 0) + 1)
+
   const openers: BodyLine[] = []
-  let previousOpened = false
+  // -1 so the first bullet of a run always opens a group, no recurrence needed.
+  let groupCount = -1
   for (const line of counted) {
     const opensGroup = line.bulleted && line.depth === modelDepth
-    if (opensGroup && !previousOpened) openers.push(line)
-    previousOpened = opensGroup
+    const count = line.count ?? 0
+    const startsFresh = groupCount < 0
+    const jumpsGroup = !startsFresh && count > groupCount && (countFrequency.get(count) ?? 0) > 1
+    if (opensGroup && (startsFresh || jumpsGroup)) {
+      openers.push(line)
+      groupCount = count
+    }
+    if (!opensGroup) groupCount = -1
   }
 
   const namesModels = openers.length > 1 || (openers[0]?.count ?? 0) > 1
