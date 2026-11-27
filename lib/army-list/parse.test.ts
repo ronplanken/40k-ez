@@ -10,6 +10,7 @@ import {
   TAU_MONTKA,
   SORORITAS_LEADING,
   RED_GEAR_SPACED_POINTS,
+  LIST_BUILDER_LEADS,
 } from './parse.fixtures'
 
 // Look up the first unit whose name matches, for per-unit assertions.
@@ -1108,5 +1109,173 @@ Flash Gitz (150 Points)
   it('keeps the next label a new block, whatever character opens it', () => {
     const parsed = parseArmyList(list)
     expect(leaderNames(unit(parsed, 'Flash Gitz'))).toEqual(['Bannernob'])
+  })
+})
+
+describe('parseArmyList - list builder export with "Leads:" lines (Skulls for the Throne)', () => {
+  const list = parseArmyList(LIST_BUILDER_LEADS)
+
+  it('reads the name from the first line and the labelled header fields', () => {
+    expect(list.name).toBe('Skulls for the Throne')
+    expect(list.faction).toBe('World Eaters')
+    expect(list.subfaction).toBeNull()
+    expect(list.detachment).toBe('Berserker Warband, Heralds of Fury')
+    expect(list.disposition).toBe('Purge the Foe')
+  })
+
+  it('reads the points and detachment points the "Total:" line says are spent', () => {
+    expect(list.points).toBe(2000)
+    expect(list.detachmentPoints).toBe(3)
+  })
+
+  it('takes the spent total over the battle size limit', () => {
+    const under = parseArmyList(
+      LIST_BUILDER_LEADS.replace(
+        'Total: 2000 / 2000 pts · 3/3 DP',
+        'Total: 1985 / 2000 pts · 2/3 DP'
+      )
+    )
+    expect(under.points).toBe(1985)
+    expect(under.detachmentPoints).toBe(2)
+  })
+
+  it('parses the 17 units the footer declares, and nothing from the rules or the footer', () => {
+    expect(list.units).toHaveLength(17)
+    expect(list.units.reduce((sum, u) => sum + (u.points ?? 0), 0)).toBe(2000)
+    expect(list.units[list.units.length - 1].wargear).toEqual([
+      'Additional combi-bolter',
+      'Havoc launcher',
+      'Armoured tracks',
+    ])
+  })
+
+  it('reads the units under EPIC HERO as characters', () => {
+    expect(unit(list, 'Angron').category).toBe('characters')
+    expect(unit(list, 'Angron').points).toBe(330)
+    expect(unit(list, 'Lord Invocatus').category).toBe('characters')
+  })
+
+  it('flags the warlord tagged on the unit line, and only that unit', () => {
+    expect(list.units.filter((u) => u.isWarlord).map((u) => u.name)).toEqual(['Angron'])
+  })
+
+  it('reads the model count written behind the name and keeps it out of the name', () => {
+    expect(unit(list, 'Jakhals').models).toBe(10)
+    expect(unit(list, 'Bloodletters').models).toBe(8)
+    expect(unit(list, 'Eightbound').models).toBe(3)
+    expect(unit(list, 'Chaos Rhino').models).toBe(1)
+  })
+
+  it('reads a "Leads:" line as a unit of its own, led by the unit above it', () => {
+    const squads = list.units.filter((u) => u.name === 'Khorne Berzerkers')
+    expect(squads.map((u) => u.models)).toEqual([10, 10])
+    expect(squads.map((u) => u.points)).toEqual([170, 170])
+    expect(squads.map(leaderNames)).toEqual([['Khârn the Betrayer'], ['Executioner Lord']])
+    expect(leaderNames(unit(list, 'Exalted Eightbound'))).toEqual(['Slaughterbound'])
+  })
+
+  it('files a leader under characters and its unit under the section they share', () => {
+    expect(unit(list, 'Khârn the Betrayer').category).toBe('characters')
+    expect(unit(list, 'Executioner Lord').category).toBe('characters')
+    expect(list.units.filter((u) => u.name === 'Slaughterbound').map((u) => u.category)).toEqual([
+      'characters',
+      'characters',
+      'characters',
+    ])
+    expect(unit(list, 'Khorne Berzerkers').category).toBe('battleline')
+    expect(unit(list, 'Exalted Eightbound').category).toBe('other')
+  })
+
+  it('reads units under a role section such as INFANTRY as other', () => {
+    expect(unit(list, 'Jakhals').category).toBe('other')
+    expect(unit(list, 'Eightbound').leaders).toEqual([])
+    expect(countByCategory(list, 'transports')).toBe(2)
+  })
+
+  it('reads the enhancement without its cost', () => {
+    expect(unit(list, 'Executioner Lord').enhancement).toBe('Berserker Glaive')
+    expect(unit(list, 'Executioner Lord').points).toBe(95)
+  })
+
+  it('reads a role section the parser has no name for, instead of losing its units', () => {
+    const renamed = parseArmyList(
+      LIST_BUILDER_LEADS.replace('EPIC HERO', 'LORD OF WAR').replace(
+        'DEDICATED TRANSPORT',
+        'TITANIC'
+      )
+    )
+    expect(renamed.units).toHaveLength(17)
+    expect(unit(renamed, 'Angron').category).toBe('other')
+    expect(unit(renamed, 'Chaos Rhino').category).toBe('other')
+    expect(unit(renamed, 'Eightbound').wargear).toEqual(['Chainblade'])
+    expect(renamed.name).toBe('Skulls for the Throne')
+  })
+
+  it('keeps a list name written with a period or a parenthesis', () => {
+    const named = (name: string) =>
+      parseArmyList(LIST_BUILDER_LEADS.replace('Skulls for the Throne', name))
+    expect(named('Skulls D.M.').name).toBe('Skulls D.M.')
+    expect(named('Skulls (v2)').name).toBe('Skulls (v2)')
+    expect(named('SKULLS').units).toHaveLength(17)
+  })
+
+  it('reads a plain line under the labelled faction as the subfaction, not the name', () => {
+    const list = parseArmyList(
+      ['Faction: Space Marines', 'Space Wolves', '', 'CHARACTER', 'Logan Grimnar (110 pts)'].join(
+        '\n'
+      )
+    )
+    expect(list.name).toBeNull()
+    expect(list.faction).toBe('Space Marines')
+    expect(list.subfaction).toBe('Space Wolves')
+  })
+
+  it('gives every "Leads:" line under one character that character as its leader', () => {
+    const list = parseArmyList(
+      [
+        'Two leads',
+        'Faction: Space Marines',
+        '',
+        'BATTLELINE',
+        'Captain (80 pts)',
+        '   └ Leads: Lieutenant (65 pts)',
+        '   └ Leads: Intercessor Squad ×10 (160 pts)',
+      ].join('\n')
+    )
+    expect(unit(list, 'Captain').category).toBe('characters')
+    expect(leaderNames(unit(list, 'Lieutenant'))).toEqual(['Captain'])
+    expect(leaderNames(unit(list, 'Intercessor Squad'))).toEqual(['Captain'])
+    expect(unit(list, 'Intercessor Squad').category).toBe('battleline')
+  })
+
+  it('strips the "N×" counts from the wargear', () => {
+    expect(unit(list, 'Khorne Berzerkers').wargear).toEqual([
+      'Bolt pistol',
+      'Icon of Khorne',
+      'Plasma pistol',
+      'Chainblade',
+      'Khornate Eviscerator',
+    ])
+    expect(unit(list, 'Angron').wargear).toEqual(['Samni’arius and Spinegrinder'])
+  })
+})
+
+describe('parseArmyList - role words outside a list builder export', () => {
+  it('does not read a stray "Vehicle" line as a section header', () => {
+    const list = parseArmyList(
+      [
+        '+ FACTION KEYWORD: Xenos - Tau Empire',
+        '+ TOTAL ARMY POINTS: 450pts',
+        'Char1: 1x Commander Farsight (105 pts): Dawn Blade',
+        '3x Crisis Suits (200 pts): Burst cannon',
+        'Vehicle',
+        '1x Hammerhead (145 pts): Railgun',
+      ].join('\n')
+    )
+    expect(list.units.map((u) => u.name)).toEqual([
+      'Commander Farsight',
+      'Crisis Suits',
+      'Hammerhead',
+    ])
   })
 })

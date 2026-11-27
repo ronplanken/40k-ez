@@ -666,3 +666,69 @@ Chaos Warhound Titan (1\u00a0100 Points)
   • 1x Warhound vulcan mega-bolter
 
 Exported with App Version: v2.0.5 (2), Data Version: v886`
+
+export const LIST_BUILDER_LEADS = `Skulls for the Throne
+──────────────────────────────
+Faction: World Eaters
+Detachment: Berserker Warband, Heralds of Fury
+Battle Size: Strike Force (2000 pts)
+Total: 2000 / 2000 pts · 3/3 DP · ✓ Legal
+Force Disposition: Purge the Foe
+
+EPIC HERO
+Angron (330 pts) · Warlord
+   · Samni’arius and Spinegrinder
+
+Lord Invocatus (100 pts)
+   · Bolt pistol, Coward's Bane, Juggernaut's Spear
+
+CHARACTER
+Slaughterbound (90 pts)
+   · Lacerator and Daemon claw
+
+Slaughterbound (90 pts)
+   · Lacerator and Daemon claw
+
+BATTLELINE
+Khârn the Betrayer (115 pts)
+   · Plasma pistol, Blood Son
+   └ Leads: Khorne Berzerkers ×10 (170 pts)
+      · 7× Bolt pistol, Icon of Khorne, 3× Plasma pistol, 8× Chainblade, 2× Khornate Eviscerator
+
+Executioner Lord (95 pts)
+   · Bolt pistol, Axe of Dismemberment
+   · Enhancement: Berserker Glaive (+35 pts)
+   └ Leads: Khorne Berzerkers ×10 (170 pts)
+      · 7× Bolt pistol, Icon of Khorne, 3× Plasma pistol, 8× Chainblade, 2× Khornate Eviscerator
+
+INFANTRY
+Slaughterbound (110 pts)
+   · Lacerator and Daemon claw
+   · Enhancement: Battle Lust (+20 pts)
+   └ Leads: Exalted Eightbound ×3 (130 pts)
+      · 3× Chainblade
+
+Jakhals ×10 (65 pts)
+   · 9× Autopistol, Icon of Khorne, 8× Chainblade, Skullsmasher, Skullcrusher and Butcher
+
+Jakhals ×10 (65 pts)
+   · 9× Autopistol, Icon of Khorne, 8× Chainblade, Skullsmasher, Skullcrusher and Butcher
+
+Bloodletters ×8 (70 pts)
+   · 8× Autopistol, Blood Harpoon, 7× Chainblade, 8× Close Combat Weapon
+
+Eightbound ×3 (125 pts)
+   · 3× Chainblade
+
+Eightbound ×3 (125 pts)
+   · 3× Chainblade
+
+DEDICATED TRANSPORT
+Chaos Rhino (75 pts)
+   · Additional combi-bolter, Havoc launcher, Armoured tracks
+
+Chaos Rhino (75 pts)
+   · Additional combi-bolter, Havoc launcher, Armoured tracks
+
+──────────────────────────────
+2000 / 2000 pts · 17 units · Strike Force`
