@@ -1,11 +1,11 @@
 // Types the army list parser produces. This is the raw shape read out of a
 // Warhammer 40,000 app export, before any app decides how to show it.
 //
-// SHARED FILE. This module and `parse.ts`, `parse.fixtures.ts` and
-// `parse.test.ts` next to it are kept byte-identical between the 40k-ez app and
-// the gd streamer app. Both read the same exports, and the two copies drifting
-// apart is how the same bugs ended up in both. Change it in one repo, copy the
-// four files to the other, and run the tests in both. Anything app-specific
+// SHARED FILE. This module and `parse.ts`, `model-lines.ts`, `parse.fixtures.ts`
+// and `parse.test.ts` next to it are kept byte-identical between the 40k-ez app
+// and the gd streamer app. Both read the same exports, and the two copies
+// drifting apart is how the same bugs ended up in both. Change it in one repo,
+// copy the five files to the other, and run the tests in both. Anything app-specific
 // belongs in the layer that maps this onto a display model, not in here.
 //
 // Formatting follows the streamer's prettier config, which its lint enforces.
