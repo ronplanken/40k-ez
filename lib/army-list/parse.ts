@@ -45,13 +45,6 @@ const SECTION_HEADERS: Record<string, SectionCategory> = {
   OTHER: 'other',
   'ALLIED UNITS': 'other',
   ALLIES: 'other',
-  INFANTRY: 'other',
-  MOUNTED: 'other',
-  BEAST: 'other',
-  SWARM: 'other',
-  MONSTER: 'other',
-  VEHICLE: 'other',
-  FORTIFICATION: 'other',
   'ATTACHED UNITS': 'attached',
   'ATTACHED UNIT': 'attached',
 }
@@ -83,6 +76,12 @@ const DISPOSITION_NAMES =
   /^(take and hold|purge the foe|reconnaissance|priority assets|disruption)$/i
 
 const FACTION_FIELD = /^faction(?: keyword| used)?:\s*(.+)$/i
+
+const LABELLED_FACTION = /^faction:/i
+
+const HEADER_FIELD = /^(?:faction|detachments?|battle size|total|force dispositions?):/i
+
+const ROLE_HEADER = /^[A-Z][A-Z' -]*$/
 
 const SPENT_OF_LIMIT = new RegExp(
   `^(?:total:\\s*)?(\\d(?:[${THOUSANDS_SEPARATORS}]?\\d)*)\\s*/\\s*\\d(?:[${THOUSANDS_SEPARATORS}]?\\d)*\\s*(?:points|pts)\\b`,
@@ -359,7 +358,7 @@ function parseHeader(preamble: string[]): HeaderInfo {
     .filter((l) => l.length > 0 && !l.startsWith('+') && !RULE_LINE.test(l))
   if (lines.length === 0) return info
 
-  const statesFaction = lines.some((l) => FACTION_FIELD.test(l))
+  const labelledFaction = lines.find((l) => LABELLED_FACTION.test(l))?.match(FACTION_FIELD)
 
   // Title line: "<name> (<pts> points)". Not every export has one, and when it
   // is missing the first line is already the faction, so only skip it when it
@@ -370,10 +369,13 @@ function parseHeader(preamble: string[]): HeaderInfo {
     info.name = title[1].trim()
     info.points ??= toNumber(title[2])
   }
+  const named = !title && labelledFaction != null && !HEADER_FIELD.test(lines[0])
+  if (named) info.name = lines[0]
+  if (labelledFaction) info.faction ??= labelledFaction[1].trim()
 
   // Skip the first line only when it really was a title. A list that opens on
   // its battle size still has to read that line, or the army total is lost.
-  for (const line of title ? lines.slice(1) : lines) {
+  for (const line of title || named ? lines.slice(1) : lines) {
     const faction = line.match(FACTION_FIELD)
     if (faction) {
       info.faction ??= faction[1].trim()
@@ -425,10 +427,6 @@ function parseHeader(preamble: string[]): HeaderInfo {
     // one carrying sentence punctuation is prose, not a faction.
     if (line.length > MAX_FACTION_NAME_LENGTH || /\.(\s|$)/.test(line)) continue
     if (CARRIES_LINK.test(line)) continue
-    if (statesFaction) {
-      info.name ??= line
-      continue
-    }
     // First two plain lines are faction then subfaction (chapter/legion). A
     // "+ FACTION:" header names the same faction the list then repeats, so a
     // line equal to the faction is that repeat, not a chapter.
@@ -531,7 +529,13 @@ export function parseArmyList(input: string): ArmyList {
   // Normalise every line once, so the section-header lookup below and the main
   // loop share the work.
   const keys = lines.map((l) => l.trim().toUpperCase().replace(/\s+/g, ' '))
-  const firstSection = keys.findIndex((k) => k in SECTION_HEADERS)
+  const factionLine = lines.findIndex((l) => LABELLED_FACTION.test(l.trim()))
+  const sections: Array<SectionCategory | null> = lines.map((raw, i) => {
+    if (keys[i] in SECTION_HEADERS) return SECTION_HEADERS[keys[i]]
+    const roleHeader = factionLine >= 0 && i > factionLine && ROLE_HEADER.test(raw.trimEnd())
+    return roleHeader ? 'other' : null
+  })
+  const firstSection = sections.findIndex((section) => section !== null)
 
   // Where the unit body begins. With section headers the preamble is everything
   // before the first one. Without them (a compact export that lists units right
@@ -599,9 +603,10 @@ export function parseArmyList(input: string): ArmyList {
   for (let i = bodyStart; i < lines.length; i++) {
     const raw = lines[i]
 
-    if (keys[i] in SECTION_HEADERS) {
+    const section = sections[i]
+    if (section !== null) {
       flush()
-      currentSection = SECTION_HEADERS[keys[i]]
+      currentSection = section
       continue
     }
 
@@ -630,8 +635,10 @@ export function parseArmyList(input: string): ArmyList {
     // A unit line starts at the left margin and is not bulleted (bulleted
     // "(x pts)" lines are enhancements/wargear inside a unit).
     if (unitMatch && !bulleted && !isExportChrome(unitMatch[1].trim())) {
-      flush(led !== null)
-      const leader: WorkingUnit | null = led ? units[units.length - 1] : null
+      const sharedLeader: LeaderRef | null = led && pending ? pending.leader : null
+      flush(led !== null && sharedLeader === null)
+      const opener: WorkingUnit | null = led && !sharedLeader ? units[units.length - 1] : null
+      const leader: LeaderRef | null = opener ? { id: opener.id, name: opener.name } : sharedLeader
       let name = unitMatch[1].trim()
       // Peel a "CharN:" roster slot, then a leading "Nx" model count, off the
       // name (compact exports carry both; the other export shapes carry neither).
@@ -654,7 +661,7 @@ export function parseArmyList(input: string): ArmyList {
         charId,
         sameLineWargear: unitMatch[4]?.trim() || null,
         warlord: /\bwarlord\b/i.test(unitMatch[3] ?? ''),
-        leader: leader ? { id: leader.id, name: leader.name } : null,
+        leader,
       }
       continue
     }
